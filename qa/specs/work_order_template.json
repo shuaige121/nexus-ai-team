@@ -1,0 +1,30 @@
+{
+  "name": "work-order-output-template",
+  "command": "python3 path/to/your_entrypoint.py",
+  "timeout_seconds": 60,
+  "expected_exit_code": 0,
+  "completeness": {
+    "source": "combined",
+    "required_substrings": [
+      "WO-"
+    ],
+    "forbidden_substrings": [
+      "Traceback",
+      "Unhandled"
+    ]
+  },
+  "format": {
+    "type": "json",
+    "source": "stdout",
+    "required_keys": [
+      "id",
+      "intent",
+      "difficulty",
+      "owner",
+      "compressed_context",
+      "relevant_files",
+      "qa_requirements",
+      "deadline"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "sample-success",
+  "command": "python3 qa/tests/mock_task.py",
+  "timeout_seconds": 15,
+  "expected_exit_code": 0,
+  "completeness": {
+    "source": "stdout",
+    "required_substrings": [
+      "status",
+      "result",
+      "mock-complete"
+    ],
+    "forbidden_substrings": [
+      "Traceback",
+      "ERROR"
+    ]
+  },
+  "format": {
+    "type": "json",
+    "source": "stdout",
+    "required_keys": [
+      "status",
+      "result",
+      "checks"
+    ]
+  }
+}

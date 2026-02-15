@@ -1,0 +1,89 @@
+name: ${COMPOSE_PROJECT_NAME}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: ${POSTGRES_CONTAINER_NAME}
+    restart: ${POSTGRES_RESTART_POLICY}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${DB_SCHEMA_PATH}:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: ${POSTGRES_HEALTHCHECK_INTERVAL}
+      timeout: ${POSTGRES_HEALTHCHECK_TIMEOUT}
+      retries: ${POSTGRES_HEALTHCHECK_RETRIES}
+      start_period: ${POSTGRES_HEALTHCHECK_START_PERIOD}
+    networks:
+      - nexus
+
+  redis:
+    image: ${REDIS_IMAGE}
+    container_name: ${REDIS_CONTAINER_NAME}
+    restart: ${REDIS_RESTART_POLICY}
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "${REDIS_APPENDONLY}",
+        "--save",
+        "${REDIS_SAVE_SECONDS}",
+        "${REDIS_SAVE_CHANGES}",
+        "--requirepass",
+        "${REDIS_PASSWORD}"
+      ]
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
+      interval: ${REDIS_HEALTHCHECK_INTERVAL}
+      timeout: ${REDIS_HEALTHCHECK_TIMEOUT}
+      retries: ${REDIS_HEALTHCHECK_RETRIES}
+      start_period: ${REDIS_HEALTHCHECK_START_PERIOD}
+    networks:
+      - nexus
+
+  app:
+    image: ${APP_IMAGE}
+    container_name: ${APP_CONTAINER_NAME}
+    restart: ${APP_RESTART_POLICY}
+    working_dir: ${APP_WORKDIR}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV}
+      APP_HOST: ${APP_HOST}
+      APP_PORT: ${APP_PORT}
+      DATABASE_URL: ${APP_DATABASE_URL}
+      REDIS_URL: ${APP_REDIS_URL}
+      TZ: ${TZ}
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    volumes:
+      - ${APP_SOURCE_PATH}:${APP_WORKDIR}
+    command: ["sh", "-c", "${APP_START_COMMAND}"]
+    networks:
+      - nexus
+
+networks:
+  nexus:
+    name: ${NEXUS_NETWORK_NAME}
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_DATA_VOLUME}
+  redis_data:
+    name: ${REDIS_DATA_VOLUME}
