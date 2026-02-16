@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from agents.model_router import ModelRouter
+from nexus_v1.model_router import ModelRouter
 
 
 class LiteLLMSmokeTest(unittest.TestCase):

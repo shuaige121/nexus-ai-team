@@ -36,6 +36,60 @@ logger = logging.getLogger(__name__)
 # Choice definitions per level
 # ---------------------------------------------------------------------------
 
+CEO_TASK_CHOICES = {
+    "dispatch_to_manager": {
+        "label": "A. 分析任务并派发给Manager",
+        "description": "拆解任务目标，创建task contract发送给对应部门Manager",
+        "contract_type": CONTRACT_TASK,
+        "target": "dynamic",
+    },
+    "request_hr_setup": {
+        "label": "B. 需要先建部门/招人",
+        "description": "通过HR创建新部门或招聘新员工",
+        "contract_type": CONTRACT_TASK,
+        "target": "hr_lead",
+    },
+    "clarify_with_board": {
+        "label": "C. 需要向董事会确认需求",
+        "description": "向用户请求更多信息或澄清",
+        "contract_type": CONTRACT_CLARIFICATION,
+        "target": "board",
+    },
+    "reject_infeasible": {
+        "label": "D. 任务不可行，向董事会反馈",
+        "description": "说明不可行原因，反馈给用户",
+        "contract_type": CONTRACT_REPORT,
+        "target": "board",
+    },
+}
+
+MANAGER_TASK_CHOICES = {
+    "dispatch_to_workers": {
+        "label": "A. 拆解任务并分配给Worker",
+        "description": "将任务拆解为子任务，创建task contract分配给下属Worker",
+        "contract_type": CONTRACT_TASK,
+        "target": "dynamic",
+    },
+    "request_clarification_from_ceo": {
+        "label": "B. 需要更多信息",
+        "description": "向CEO请求更多信息或澄清",
+        "contract_type": CONTRACT_CLARIFICATION,
+        "target": "reports_to",
+    },
+    "escalate_cannot_complete": {
+        "label": "C. 无法完成，升级给CEO",
+        "description": "任务超出本部门能力范围，升级给CEO处理",
+        "contract_type": CONTRACT_ESCALATION,
+        "target": "reports_to",
+    },
+    "request_cross_department_task": {
+        "label": "D. 需要其他部门配合",
+        "description": "选择目标部门，发送协助请求",
+        "contract_type": CONTRACT_CROSS_DEPARTMENT,
+        "target": "dynamic",
+    },
+}
+
 WORKER_CHOICES = {
     "submit_report": {
         "label": "A. 提交完成报告",
@@ -187,9 +241,11 @@ CEO_CHOICES = {
 CHOICE_SETS: dict[str, dict] = {
     LEVEL_WORKER: WORKER_CHOICES,
     LEVEL_QA_WORKER: QA_WORKER_CHOICES,
+    f"{LEVEL_CEO}_task": CEO_TASK_CHOICES,
+    f"{LEVEL_CEO}_report": CEO_CHOICES,
+    f"{LEVEL_MANAGER}_task": MANAGER_TASK_CHOICES,
     f"{LEVEL_MANAGER}_report": MANAGER_REPORT_CHOICES,
     f"{LEVEL_MANAGER}_review": MANAGER_REVIEW_CHOICES,
-    LEVEL_CEO: CEO_CHOICES,
 }
 
 
@@ -204,13 +260,30 @@ def get_choices_for_agent(
 ) -> dict:
     """Get the valid choices for an agent based on level and context.
 
+    The choice set depends on both the agent's level AND the type of
+    contract they just processed:
+    - CEO receiving task → dispatch/setup choices
+    - CEO receiving report → approve/revise choices
+    - Manager receiving task → decompose/assign choices
+    - Manager receiving report → review/accept choices
+    - Manager receiving review result → accept/reject choices
+
     Returns the choice set dict.
     """
+    if level == LEVEL_CEO:
+        if contract_type in (CONTRACT_TASK, CONTRACT_CLARIFICATION, CONTRACT_REVISION):
+            return CEO_TASK_CHOICES
+        return CEO_CHOICES  # report/escalation → approve/revise flow
+
     if level == LEVEL_MANAGER:
-        # Determine which manager choice set based on incoming contract type
-        if contract_type in (CONTRACT_REVIEW_PASSED, CONTRACT_REVIEW_FIXED, CONTRACT_REVIEW_FAILED):
+        if contract_type in (CONTRACT_TASK, CONTRACT_CLARIFICATION, CONTRACT_REVISION):
+            return MANAGER_TASK_CHOICES
+        if contract_type in (
+            CONTRACT_REVIEW_PASSED, CONTRACT_REVIEW_FIXED, CONTRACT_REVIEW_FAILED,
+        ):
             return MANAGER_REVIEW_CHOICES
-        return MANAGER_REPORT_CHOICES
+        return MANAGER_REPORT_CHOICES  # report/failure/escalation from workers
+
     return CHOICE_SETS.get(level, WORKER_CHOICES)
 
 

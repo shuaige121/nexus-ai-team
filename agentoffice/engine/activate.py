@@ -9,6 +9,11 @@ When an agent receives a contract:
 6. Execute tool_calls (deterministic, zero LLM)
 7. Convert choice → contract via choice_handlers
 8. Route the new contract → recursive activation
+
+NOTE: Current implementation is synchronous/sequential. When CEO dispatches
+tasks to multiple Managers, they execute one at a time. Async/parallel
+activation (e.g. asyncio.gather for independent subtasks) is planned for
+a future iteration.
 """
 
 from __future__ import annotations
