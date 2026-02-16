@@ -1,0 +1,21 @@
+# 种族信息 (Race Configuration)
+
+species: "{species}"
+provider: "{provider}"
+endpoint: "{endpoint}"
+api_key_env: "{api_key_env}"
+model: "{model}"
+
+parameters:
+  temperature: {temperature}
+  max_tokens: {max_tokens}
+
+cost:
+  input_per_1k: {input_cost}
+  output_per_1k: {output_cost}
+
+capabilities:
+  reasoning: "{reasoning}"
+  speed: "{speed}"
+  tool_use: {tool_use}
+  languages: {languages}

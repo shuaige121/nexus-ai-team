@@ -1,0 +1,26 @@
+contract_id: "{contract_id}"
+from: "{from_agent}"
+to: "{to_agent}"
+type: "{contract_type}"
+priority: "{priority}"
+created_at: "{created_at}"
+
+payload:
+  objective: "{objective}"
+  acceptance_criteria: {acceptance_criteria}
+  deadline: "{deadline}"
+  attachments: {attachments}
+
+chain:
+  on_complete:
+    action: send_contract
+    to: "{on_complete_to}"
+    type: "{on_complete_type}"
+  on_fail:
+    action: send_contract
+    to: "{on_fail_to}"
+    type: escalation
+  on_revision:
+    action: send_contract
+    to: "{on_revision_to}"
+    type: revision
