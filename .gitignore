@@ -45,3 +45,9 @@ node_modules/
 
 # Docker
 docker-compose.override.yml
+
+# AgentOffice runtime data (contracts are generated at runtime)
+company/contracts/pending/*.yaml
+company/contracts/completed/*.yaml
+company/contracts/archived/*.yaml
+company/contracts/archived/*.md
