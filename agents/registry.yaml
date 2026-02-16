@@ -11,7 +11,7 @@ agents:
     role: worker
     department: dept-gateway
     reports_to: dept-gateway-manager
-    model: sonnet
+    model: haiku
     created: 2026-02-16
     status: archived
   dept-gateway-qa:
