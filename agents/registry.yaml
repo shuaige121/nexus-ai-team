@@ -1,0 +1,40 @@
+# AgentOffice 组织登记表
+agents:
+  dept-gateway-manager:
+    role: manager
+    department: dept-gateway
+    reports_to: ceo
+    model: opus
+    created: 2026-02-16
+    status: active
+  dept-gateway-dev-01:
+    role: worker
+    department: dept-gateway
+    reports_to: dept-gateway-manager
+    model: sonnet
+    created: 2026-02-16
+    status: archived
+  dept-gateway-qa:
+    role: qa
+    department: dept-gateway
+    reports_to: dept-gateway-manager
+    model: sonnet
+    created: 2026-02-16
+    status: active
+  dept-auth-manager:
+    role: manager
+    department: dept-auth
+    reports_to: ceo
+    model: opus
+    created: 2026-02-16
+    status: active
+
+departments:
+  dept-gateway:
+    manager: dept-gateway-manager
+    members:
+      - dept-gateway-dev-01
+      - dept-gateway-qa
+  dept-auth:
+    manager: dept-auth-manager
+    members: []
