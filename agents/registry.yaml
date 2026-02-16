@@ -6,7 +6,7 @@ agents:
     reports_to: ceo
     model: opus
     created: 2026-02-16
-    status: active
+    status: archived
   dept-gateway-dev-01:
     role: worker
     department: dept-gateway
@@ -24,6 +24,6 @@ agents:
 
 departments:
   dept-gateway:
-    manager: dept-gateway-manager
+    manager: null
     members:
       - dept-gateway-qa
