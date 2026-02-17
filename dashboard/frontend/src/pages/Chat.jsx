@@ -9,9 +9,12 @@ export default function Chat() {
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
-    // Connect to WebSocket
+    // Connect to WebSocket with optional token
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.hostname}:8000/ws`
+    const token = localStorage.getItem('api_token') || ''
+    const wsUrl = token
+      ? `${protocol}//${window.location.hostname}:8000/ws?token=${encodeURIComponent(token)}`
+      : `${protocol}//${window.location.hostname}:8000/ws`
     const socket = new WebSocket(wsUrl)
 
     socket.onopen = () => {
@@ -21,12 +24,33 @@ export default function Chat() {
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data)
-      setMessages((prev) => [...prev, {
-        id: Date.now(),
-        role: 'assistant',
-        content: data.content || data.message || JSON.stringify(data),
-        timestamp: new Date().toISOString(),
-      }])
+
+      // Handle different WebSocket frame types
+      if (data.type === 'res') {
+        // Response to our request
+        if (data.ok && data.payload) {
+          setMessages((prev) => [...prev, {
+            id: Date.now(),
+            role: 'assistant',
+            content: `Work order created: ${data.payload.work_order_id}\nDifficulty: ${data.payload.difficulty}\nOwner: ${data.payload.owner}`,
+            timestamp: new Date().toISOString(),
+          }])
+        } else if (!data.ok) {
+          setMessages((prev) => [...prev, {
+            id: Date.now(),
+            role: 'error',
+            content: `Error: ${data.error || 'Unknown error'}`,
+            timestamp: new Date().toISOString(),
+          }])
+        }
+      } else if (data.type === 'event') {
+        // Server event (e.g., connected, chat.ack)
+        console.log('WebSocket event:', data.event, data.payload)
+        if (data.event === 'chat.ack') {
+          // Optionally update UI to show acknowledgment
+          console.log('Message acknowledged:', data.payload)
+        }
+      }
     }
 
     socket.onerror = (error) => {
@@ -53,10 +77,11 @@ export default function Chat() {
   const sendMessage = async () => {
     if (!input.trim()) return
 
+    const messageContent = input
     const userMessage = {
       id: Date.now(),
       role: 'user',
-      content: input,
+      content: messageContent,
       timestamp: new Date().toISOString(),
     }
 
@@ -64,10 +89,14 @@ export default function Chat() {
     setInput('')
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      // Send via WebSocket
+      // Send via WebSocket with correct format: {type: "req", id: "...", method: "chat.send", params: {content: "..."}}
       ws.send(JSON.stringify({
-        type: 'chat',
-        content: input,
+        type: 'req',
+        id: `msg_${Date.now()}`,
+        method: 'chat.send',
+        params: {
+          content: messageContent,
+        },
       }))
     } else {
       // Fallback to HTTP
