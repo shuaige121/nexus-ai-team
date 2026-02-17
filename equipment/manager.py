@@ -125,7 +125,10 @@ class EquipmentManager:
             return False
 
         # Remove from scheduler
-        self.scheduler.remove_job(f"equipment_{name}", jobstore=None)
+        try:
+            self.scheduler.remove_job(f"equipment_{name}")
+        except:
+            pass
 
         # Remove from registry
         del self.registry[name]
