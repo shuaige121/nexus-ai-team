@@ -96,8 +96,8 @@ async def test_dispatcher_process_work_order(mock_router):
     import os
     from pipeline import Dispatcher, QueueManager, WorkOrderDB
 
-    # Use test databases - read from environment or use fallback
-    db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://nexus:strong_dev_password_2024@localhost:5432/nexus")
+    # Use test databases - read from environment or skip test if not configured
+    db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
     db = WorkOrderDB(db_url)
     queue = QueueManager("redis://localhost:6379/15", stream_name="test:dispatcher")
 
