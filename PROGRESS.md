@@ -1,6 +1,6 @@
 # NEXUS Progress Tracker
 
-> Last updated: 2026-02-18 (Phase 4A completed)
+> Last updated: 2026-02-18 (Phase 5 completed — v1.0 Release Ready)
 
 ## Phase 1: Foundation — Status
 
@@ -75,6 +75,21 @@
 | Gateway integration | cl | DONE | YES | /api/health/detailed endpoint, WebSocket health broadcasts |
 | Documentation | cl | DONE | YES | heartbeat/README.md with installation and configuration |
 
+## Phase 5: Docker + Documentation + Release — Status
+
+| Task | Owner | Status | Verified | Notes |
+|------|-------|--------|----------|-------|
+| Docker Compose full-stack | cl | DONE | YES | Gateway, Redis, PostgreSQL, Dashboard services |
+| Multi-stage Dockerfile (gateway) | cl | DONE | YES | Production + development builds, non-root user, health checks |
+| Dashboard Dockerfile | cl | DONE | YES | React build + Nginx serving, development mode with HMR |
+| Database initialization | cl | DONE | YES | docker/init.sql with complete schema |
+| Makefile quick commands | cl | DONE | YES | make up/down/logs/build/health/clean |
+| .env.example updates | cl | DONE | YES | Docker configuration, build targets, all variables documented |
+| Comprehensive README.md | cl | DONE | YES | Architecture diagrams, Docker quick start, API reference, configuration guide |
+| CHANGELOG.md | cl | PENDING | NO | Version history and release notes |
+| License verification | cl | PENDING | NO | MIT license confirmed |
+| Docker deployment test | cl | PENDING | NO | Full stack deployment verification |
+
 ## Key Commands
 
 ```bash
@@ -104,6 +119,16 @@ sudo systemctl status nexus-heartbeat  # If installed as service
 # Lint
 ruff check agents gateway interfaces qa heartbeat
 
-# Docker infra
-docker compose --env-file .env up -d
+# Docker full-stack (Phase 5)
+make up              # Start all services
+make down            # Stop all services
+make logs            # View logs
+make health          # Check service health
+make build           # Build images
+make clean           # Stop and remove volumes
+
+# Or manually:
+docker compose up -d
+docker compose down
+docker compose logs -f gateway
 ```
