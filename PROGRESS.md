@@ -1,6 +1,6 @@
 # NEXUS Progress Tracker
 
-> Last updated: 2026-02-18 (Phase 3B completed)
+> Last updated: 2026-02-18 (Phase 3C completed)
 
 ## Phase 1: Foundation — Status
 
@@ -61,6 +61,12 @@
 | Database client | cl | DONE | YES | PostgreSQL/SQLite dual support with automatic fallback |
 | Database integration | cl | DONE | YES | Logging helpers integrated into pipeline dispatcher |
 | Documentation updates | cl | DONE | YES | README with QA/logging config, examples, environment variables |
+| Phase 3C: Equipment Framework | cl | DONE | YES | Deterministic automation scripts with scheduling |
+| Equipment manager | cl | DONE | YES | Register, run, schedule, enable/disable equipment |
+| Equipment scripts | cl | DONE | YES | health_check, log_rotate, backup, cost_report |
+| Gateway integration | cl | DONE | YES | /api/equipment endpoints for management and execution |
+| Admin agent integration | cl | DONE | YES | Automatic equipment detection for cost savings |
+| Equipment documentation | cl | DONE | YES | README with equipment usage, API examples, custom script guide |
 
 ## Key Commands
 
@@ -82,6 +88,12 @@ python3 -m unittest agents.test_litellm_dry_run -v
 python3 qa/runner.py --spec qa/specs/example_json_output.json
 python3 qa/runner.py --spec qa/specs/security_check.json
 python3 qa/runner.py --spec qa/specs/work_order_response.json --log-to-db --work-order-id wo-test
+
+# Run equipment (Phase 3C)
+curl http://localhost:8000/api/equipment  # List all equipment
+curl -X POST http://localhost:8000/api/equipment/health_check/run  # Run health check
+curl -X POST http://localhost:8000/api/equipment/backup/run  # Run backup
+curl http://localhost:8000/api/equipment/schedule/jobs  # View scheduled jobs
 
 # Lint
 ruff check agents gateway interfaces qa

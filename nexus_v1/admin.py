@@ -23,6 +23,7 @@ class RouteResult:
     relevant_files: list[str]
     qa_requirements: str
     clarification_question: str | None = None
+    equipment_name: str | None = None  # If request can be handled by equipment
 
 
 @dataclass
@@ -36,6 +37,7 @@ class WorkOrder:
     qa_requirements: str
     deadline: str | None = None
     clarification_question: str | None = None
+    equipment_name: str | None = None  # If request can be handled by equipment
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +50,7 @@ class WorkOrder:
             "qa_requirements": self.qa_requirements,
             "deadline": self.deadline,
             "clarification_question": self.clarification_question,
+            "equipment_name": self.equipment_name,
         }
 
 
@@ -81,6 +84,7 @@ class AdminAgent:
             qa_requirements=route.qa_requirements,
             deadline=deadline,
             clarification_question=route.clarification_question,
+            equipment_name=route.equipment_name,
         )
 
     def compress_message(
@@ -125,12 +129,20 @@ class AdminAgent:
         compressed_context: str | None = None,
     ) -> RouteResult:
         text = (compressed_context or user_message).strip()
+
+        # Check if request can be handled by equipment (deterministic scripts)
+        equipment_name = self._detect_equipment(user_message)
+
         if self.use_llm:
             try:
-                return self._classify_with_llm(user_message=user_message, compressed_context=text)
+                result = self._classify_with_llm(user_message=user_message, compressed_context=text)
+                result.equipment_name = equipment_name
+                return result
             except Exception:
                 pass
-        return self._classify_with_heuristic(user_message=user_message, compressed_context=text)
+        result = self._classify_with_heuristic(user_message=user_message, compressed_context=text)
+        result.equipment_name = equipment_name
+        return result
 
     def _classify_with_llm(self, *, user_message: str, compressed_context: str) -> RouteResult:
         schema = (
@@ -345,6 +357,66 @@ class AdminAgent:
     @staticmethod
     def _default_clarification_question() -> str:
         return "Please clarify your expected output, constraints, and preferred deliverable format."
+
+    @staticmethod
+    def _detect_equipment(user_message: str) -> str | None:
+        """
+        Detect if user request can be handled by equipment (deterministic scripts).
+        Returns equipment name if detected, None otherwise.
+        """
+        lowered = user_message.lower()
+
+        # Health check patterns
+        health_patterns = [
+            "health check",
+            "system health",
+            "check system",
+            "cpu usage",
+            "memory usage",
+            "disk usage",
+            "gpu usage",
+            "系统健康",
+            "健康检查",
+        ]
+        if any(pattern in lowered for pattern in health_patterns):
+            return "health_check"
+
+        # Log rotation patterns
+        log_patterns = [
+            "rotate log",
+            "clean log",
+            "compress log",
+            "log cleanup",
+            "日志清理",
+            "日志轮转",
+        ]
+        if any(pattern in lowered for pattern in log_patterns):
+            return "log_rotate"
+
+        # Backup patterns
+        backup_patterns = [
+            "backup",
+            "create backup",
+            "backup project",
+            "备份",
+            "备份项目",
+        ]
+        if any(pattern in lowered for pattern in backup_patterns):
+            return "backup"
+
+        # Cost report patterns
+        cost_patterns = [
+            "cost report",
+            "token cost",
+            "usage report",
+            "token usage",
+            "成本报告",
+            "token 成本",
+        ]
+        if any(pattern in lowered for pattern in cost_patterns):
+            return "cost_report"
+
+        return None
 
     @staticmethod
     def _new_work_order_id() -> str:

@@ -21,6 +21,7 @@ from gateway.ws import manager
 from nexus_v1.admin import AdminAgent
 from nexus_v1.model_router import ModelRouter
 from pipeline import Dispatcher, QueueManager, WorkOrderDB
+from equipment.manager import EquipmentManager
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -33,6 +34,7 @@ db: WorkOrderDB | None = None
 queue: QueueManager | None = None
 dispatcher: Dispatcher | None = None
 admin_agent: AdminAgent | None = None
+equipment_manager: EquipmentManager | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +44,7 @@ admin_agent: AdminAgent | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db, queue, dispatcher, admin_agent
+    global db, queue, dispatcher, admin_agent, equipment_manager
 
     logger.info("NEXUS Gateway starting on %s:%s", settings.host, settings.port)
     if not settings.api_secret:
@@ -62,6 +64,9 @@ async def lifespan(app: FastAPI):
 
         admin_agent = AdminAgent(router=router, use_llm=False)  # LLM disabled for faster startup
 
+        # Initialize equipment manager
+        equipment_manager = EquipmentManager()
+
         logger.info("Pipeline initialized and dispatcher started")
     except Exception:
         logger.exception("Failed to initialize pipeline")
@@ -75,6 +80,8 @@ async def lifespan(app: FastAPI):
         await queue.close()
     if db:
         await db.close()
+    if equipment_manager:
+        equipment_manager.shutdown()
 
     logger.info("NEXUS Gateway shutting down")
 
@@ -253,6 +260,128 @@ async def chat(message: dict):
         }
     except Exception as e:
         logger.exception("Failed to process chat message")
+        return {"ok": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Equipment endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/equipment", tags=["equipment"])
+async def list_equipment(enabled_only: bool = False):
+    """List all registered equipment."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        equipment_list = equipment_manager.list_equipment(enabled_only=enabled_only)
+        return {"ok": True, "equipment": equipment_list, "count": len(equipment_list)}
+    except Exception as e:
+        logger.exception("Failed to list equipment")
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/equipment/{name}", tags=["equipment"])
+async def get_equipment(name: str):
+    """Get equipment details by name."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        equipment = equipment_manager.get_equipment(name)
+        if not equipment:
+            return {"ok": False, "error": f"Equipment not found: {name}"}
+        return {"ok": True, "equipment": equipment}
+    except Exception as e:
+        logger.exception("Failed to get equipment")
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/equipment/{name}/run", tags=["equipment"])
+async def run_equipment(name: str, params: dict | None = None):
+    """Execute an equipment script."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        result = equipment_manager.run_equipment(name, params)
+        return {"ok": result["status"] == "success", **result}
+    except Exception as e:
+        logger.exception("Failed to run equipment")
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/equipment/{name}/enable", tags=["equipment"])
+async def enable_equipment(name: str):
+    """Enable an equipment."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        success = equipment_manager.enable_equipment(name)
+        if not success:
+            return {"ok": False, "error": f"Equipment not found: {name}"}
+        return {"ok": True, "message": f"Equipment {name} enabled"}
+    except Exception as e:
+        logger.exception("Failed to enable equipment")
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/equipment/{name}/disable", tags=["equipment"])
+async def disable_equipment(name: str):
+    """Disable an equipment."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        success = equipment_manager.disable_equipment(name)
+        if not success:
+            return {"ok": False, "error": f"Equipment not found: {name}"}
+        return {"ok": True, "message": f"Equipment {name} disabled"}
+    except Exception as e:
+        logger.exception("Failed to disable equipment")
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/equipment/register", tags=["equipment"])
+async def register_equipment(config: dict):
+    """Register a new equipment."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        required = ["name", "script_path", "description"]
+        for field in required:
+            if field not in config:
+                return {"ok": False, "error": f"Missing required field: {field}"}
+
+        equipment = equipment_manager.register_equipment(
+            name=config["name"],
+            script_path=config["script_path"],
+            description=config["description"],
+            schedule=config.get("schedule"),
+            enabled=config.get("enabled", True),
+            params=config.get("params"),
+        )
+
+        return {"ok": True, "equipment": equipment}
+    except Exception as e:
+        logger.exception("Failed to register equipment")
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/equipment/schedule/jobs", tags=["equipment"])
+async def get_scheduled_jobs():
+    """Get all scheduled equipment jobs."""
+    if not equipment_manager:
+        return {"ok": False, "error": "Equipment manager not initialized"}
+
+    try:
+        jobs = equipment_manager.get_scheduled_jobs()
+        return {"ok": True, "jobs": jobs, "count": len(jobs)}
+    except Exception as e:
+        logger.exception("Failed to get scheduled jobs")
         return {"ok": False, "error": str(e)}
 
 

@@ -78,7 +78,10 @@ nexus-ai-team/
 │   ├── schema.sql        # PostgreSQL schema (work_orders, sessions, audit, metrics)
 │   ├── client.py         # Database client with automatic fallback
 │   └── integration.py    # Integration helpers for gateway/pipeline
-├── equipment/            # Automation scripts, cron jobs (Phase 3+)
+├── equipment/            # Equipment Framework — deterministic automation scripts
+│   ├── manager.py        # Equipment manager with scheduling
+│   ├── registry.yaml     # Equipment configuration registry
+│   └── scripts/          # Equipment scripts (health_check, backup, etc.)
 ├── docker-compose.yml    # PostgreSQL + Redis + App services
 ├── pyproject.toml        # Python project config + dependencies
 ├── .env.example          # All required environment variables
@@ -351,6 +354,164 @@ log_audit_event(
     work_order_id="wo-123",
     details={"difficulty": "normal", "owner": "director"}
 )
+```
+
+## Equipment Framework
+
+Equipment are deterministic automation scripts that don't need LLM to complete repetitive tasks. This saves costs and provides faster, more reliable execution for routine operations.
+
+### Available Equipment
+
+1. **health_check** — System health monitoring
+   - CPU, RAM, Disk, GPU usage
+   - Automatic alerts on threshold breach
+   - Runs every 15 minutes by default
+
+2. **log_rotate** — Log file management
+   - Compress large log files
+   - Delete old compressed logs
+   - Runs daily at 2 AM
+
+3. **backup** — Project backup
+   - Create tar.gz backup of project
+   - Exclude unnecessary files (node_modules, .git, etc.)
+   - Keep last 7 days of backups
+   - Runs daily at 3 AM
+
+4. **cost_report** — Token usage cost reporting
+   - Daily token usage and cost summary
+   - Breakdown by agent and model
+   - Runs daily at 9 AM
+
+### Using Equipment
+
+#### Via API
+
+```bash
+# List all equipment
+curl http://localhost:8000/api/equipment
+
+# Get equipment details
+curl http://localhost:8000/api/equipment/health_check
+
+# Run equipment manually
+curl -X POST http://localhost:8000/api/equipment/health_check/run
+
+# Run with custom parameters
+curl -X POST http://localhost:8000/api/equipment/health_check/run \
+  -H "Content-Type: application/json" \
+  -d '{"alert_cpu_threshold": 90, "alert_ram_threshold": 85}'
+
+# Enable/disable equipment
+curl -X POST http://localhost:8000/api/equipment/health_check/enable
+curl -X POST http://localhost:8000/api/equipment/health_check/disable
+
+# View scheduled jobs
+curl http://localhost:8000/api/equipment/schedule/jobs
+```
+
+#### Via Python
+
+```python
+from equipment.manager import EquipmentManager
+
+# Initialize manager
+manager = EquipmentManager()
+
+# List all equipment
+equipment = manager.list_equipment()
+
+# Run equipment
+result = manager.run_equipment("health_check")
+print(result["output"])
+
+# Register new equipment
+manager.register_equipment(
+    name="my_script",
+    script_path="my_script.py",
+    description="My custom automation script",
+    schedule="0 * * * *",  # Every hour
+    enabled=True,
+    params={"param1": "value1"}
+)
+
+# Schedule equipment with cron expression
+manager.schedule_equipment("my_script", "0 */6 * * *")  # Every 6 hours
+```
+
+#### Via Natural Language (Admin Agent Integration)
+
+The Admin agent automatically detects equipment-compatible requests:
+
+```
+User: "Check system health"
+→ Admin detects "health_check" equipment
+→ Runs health_check script (no LLM needed, saves cost)
+
+User: "Create a backup"
+→ Admin detects "backup" equipment
+→ Runs backup script immediately
+
+User: "Show me today's token costs"
+→ Admin detects "cost_report" equipment
+→ Generates cost report
+```
+
+### Creating Custom Equipment
+
+1. Create a Python script in `equipment/scripts/`:
+
+```python
+# equipment/scripts/my_task.py
+def main(param1="default", param2=42):
+    """
+    Your automation logic here.
+    Must have a main() function that returns a result.
+    """
+    # Do your task
+    result = {"status": "success", "data": "processed"}
+    return result
+
+if __name__ == "__main__":
+    result = main()
+    print(result)
+```
+
+2. Register in `equipment/registry.yaml`:
+
+```yaml
+my_task:
+  name: my_task
+  script_path: my_task.py
+  description: My custom automation task
+  schedule: "0 0 * * *"  # Daily at midnight
+  enabled: true
+  params:
+    param1: "custom_value"
+    param2: 100
+  registered_at: "2026-02-18T00:00:00"
+  last_run: null
+  run_count: 0
+  last_status: null
+```
+
+3. Add detection pattern to Admin agent (optional):
+
+```python
+# In nexus_v1/admin.py, update _detect_equipment()
+if "my task" in lowered or "do my thing" in lowered:
+    return "my_task"
+```
+
+### Cron Expression Examples
+
+```
+*/15 * * * *    # Every 15 minutes
+0 * * * *       # Every hour
+0 0 * * *       # Daily at midnight
+0 2 * * *       # Daily at 2 AM
+0 9 * * 1       # Every Monday at 9 AM
+0 0 1 * *       # First day of each month at midnight
 ```
 
 ## Development

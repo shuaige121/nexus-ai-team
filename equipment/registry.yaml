@@ -1,0 +1,79 @@
+# Equipment Registry
+# Format:
+# equipment_name:
+#   name: string
+#   script_path: string (relative to scripts/)
+#   description: string
+#   schedule: string (cron expression, optional)
+#   enabled: boolean
+#   params: dict (default parameters)
+#   registered_at: ISO datetime
+#   last_run: ISO datetime (nullable)
+#   run_count: integer
+#   last_status: string (success/error/null)
+
+health_check:
+  name: health_check
+  script_path: health_check.py
+  description: Check system health (CPU/RAM/Disk/GPU)
+  schedule: "*/15 * * * *"  # Every 15 minutes
+  enabled: true
+  params:
+    alert_cpu_threshold: 80
+    alert_ram_threshold: 80
+    alert_disk_threshold: 90
+  registered_at: "2026-02-18T00:00:00"
+  last_run: null
+  run_count: 0
+  last_status: null
+
+log_rotate:
+  name: log_rotate
+  script_path: log_rotate.py
+  description: Rotate and clean up old logs
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  enabled: true
+  params:
+    log_dir: "logs"
+    max_age_days: 30
+    max_size_mb: 100
+  registered_at: "2026-02-18T00:00:00"
+  last_run: null
+  run_count: 0
+  last_status: null
+
+backup:
+  name: backup
+  script_path: backup.py
+  description: Backup project to specified directory
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  enabled: true
+  params:
+    backup_dir: "/home/leonard/backups/nexus-ai-team"
+    exclude_patterns:
+      - "*.pyc"
+      - "__pycache__"
+      - "node_modules"
+      - ".git"
+      - "nexus.db"
+      - "venv"
+    keep_days: 7
+  registered_at: "2026-02-18T00:00:00"
+  last_run: null
+  run_count: 0
+  last_status: null
+
+cost_report:
+  name: cost_report
+  script_path: cost_report.py
+  description: Generate daily token cost report
+  schedule: "0 9 * * *"  # Daily at 9 AM
+  enabled: true
+  params:
+    report_dir: "reports/cost"
+    email_enabled: false
+    email_to: null
+  registered_at: "2026-02-18T00:00:00"
+  last_run: null
+  run_count: 0
+  last_status: null
