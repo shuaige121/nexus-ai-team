@@ -1,0 +1,26 @@
+{
+  "name": "Python Code Validation",
+  "command": "cat /home/leonard/Desktop/nexus-ai-team/qa/tests/mock_task.py",
+  "timeout_seconds": 5,
+  "use_shell": true,
+  "expected_exit_code": 0,
+  "format": {
+    "type": "none"
+  },
+  "completeness": {
+    "source": "stdout",
+    "required_substrings": ["def", "import"],
+    "forbidden_substrings": []
+  },
+  "security": {
+    "enabled": true,
+    "source": "stdout",
+    "check_placeholders": true
+  },
+  "code_execution": {
+    "enabled": true,
+    "language": "python",
+    "source": "stdout",
+    "execute_in_sandbox": false
+  }
+}

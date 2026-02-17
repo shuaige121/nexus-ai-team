@@ -1,0 +1,27 @@
+{
+  "name": "Work Order Response Validation",
+  "command": "echo '{\"work_order_id\": \"wo-123\", \"status\": \"completed\", \"result\": \"Task completed successfully\", \"artifacts\": []}'",
+  "timeout_seconds": 10,
+  "use_shell": true,
+  "expected_exit_code": 0,
+  "format": {
+    "type": "json",
+    "source": "stdout",
+    "required_keys": ["work_order_id", "status", "result"],
+    "required_paths": []
+  },
+  "completeness": {
+    "source": "stdout",
+    "required_substrings": ["completed"],
+    "forbidden_substrings": ["TODO", "FIXME", "placeholder"],
+    "required_regex": ["wo-[a-zA-Z0-9]+"]
+  },
+  "security": {
+    "enabled": true,
+    "source": "combined",
+    "check_placeholders": true
+  },
+  "code_execution": {
+    "enabled": false
+  }
+}

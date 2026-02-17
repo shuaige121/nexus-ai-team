@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Simple QA validation runner for NEXUS work outputs."""
+"""Enhanced QA validation runner for NEXUS work outputs with security and code execution checks."""
 
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -32,6 +34,7 @@ class RunReport:
     checks: list[CheckResult]
     stdout: str
     stderr: str
+    qa_result_logged: bool = False
 
     @property
     def passed(self) -> bool:
@@ -183,6 +186,141 @@ def _check_format(spec: dict[str, Any], stdout: str, stderr: str) -> CheckResult
     )
 
 
+def _check_security(spec: dict[str, Any], stdout: str, stderr: str) -> CheckResult:
+    """Check for security issues like sensitive information leakage."""
+    config = spec.get("security", {})
+    if not config.get("enabled", False):
+        return CheckResult(name="security", passed=True, details="Security checks disabled.")
+
+    source = config.get("source", "combined")
+    content = _read_source(source, stdout, stderr)
+
+    # Patterns to detect sensitive information
+    sensitive_patterns = [
+        (r"(?i)(password|passwd|pwd)\s*[:=]\s*['\"]?[\w@#$%^&*]+", "password"),
+        (r"(?i)(api[_-]?key|apikey|access[_-]?token)\s*[:=]\s*['\"]?[\w-]+", "API key"),
+        (r"(?i)(secret|private[_-]?key)\s*[:=]\s*['\"]?[\w-]+", "secret/private key"),
+        (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "email address"),
+        (r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "IP address"),
+        (r"(?i)(bearer|authorization)\s+[\w-]+", "authorization token"),
+    ]
+
+    # Additional custom patterns from spec
+    custom_patterns = config.get("forbidden_patterns", [])
+    for pattern in custom_patterns:
+        sensitive_patterns.append((pattern, "custom pattern"))
+
+    findings: list[str] = []
+    for pattern, description in sensitive_patterns:
+        matches = re.finditer(pattern, content)
+        for match in matches:
+            findings.append(f"{description} detected: {match.group()[:50]}...")
+
+    # Check for empty/placeholder values if configured
+    if config.get("check_placeholders", True):
+        placeholder_patterns = [
+            r"(?i)(TODO|FIXME|XXX|PLACEHOLDER|CHANGEME)",
+            r"<[^>]+>",  # HTML-like placeholders
+            r"\{\{[^}]+\}\}",  # Template placeholders
+        ]
+        for pattern in placeholder_patterns:
+            if re.search(pattern, content):
+                findings.append(f"Placeholder or TODO marker found: {pattern}")
+
+    if findings:
+        return CheckResult(
+            name="security",
+            passed=False,
+            details=f"Security issues detected: {'; '.join(findings[:5])}",  # Limit to first 5
+        )
+
+    return CheckResult(name="security", passed=True, details="No security issues detected.")
+
+
+def _check_code_execution(spec: dict[str, Any], stdout: str, stderr: str) -> CheckResult:
+    """Validate code snippets by attempting to parse/execute them."""
+    config = spec.get("code_execution", {})
+    if not config.get("enabled", False):
+        return CheckResult(name="code_execution", passed=True, details="Code execution checks disabled.")
+
+    source = config.get("source", "stdout")
+    content = _read_source(source, stdout, stderr).strip()
+    language = config.get("language", "python")
+
+    if language == "python":
+        # Try to extract Python code blocks
+        code_blocks = re.findall(r"```python\n(.*?)```", content, re.DOTALL)
+        if not code_blocks:
+            # Try to parse entire content as Python
+            code_blocks = [content]
+
+        errors: list[str] = []
+        for i, code in enumerate(code_blocks):
+            try:
+                ast.parse(code)
+            except SyntaxError as exc:
+                errors.append(f"Block {i+1}: Syntax error at line {exc.lineno}: {exc.msg}")
+            except Exception as exc:
+                errors.append(f"Block {i+1}: Parse error: {exc}")
+
+        if errors:
+            return CheckResult(
+                name="code_execution",
+                passed=False,
+                details=f"Python code validation failed: {'; '.join(errors)}",
+            )
+
+        # Optional: try to execute in sandbox if configured
+        if config.get("execute_in_sandbox", False):
+            for i, code in enumerate(code_blocks):
+                try:
+                    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+                        f.write(code)
+                        temp_path = f.name
+
+                    result = subprocess.run(
+                        ["python3", temp_path],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+
+                    if result.returncode != 0:
+                        errors.append(f"Block {i+1}: Execution failed with code {result.returncode}")
+
+                    Path(temp_path).unlink()
+                except subprocess.TimeoutExpired:
+                    errors.append(f"Block {i+1}: Execution timed out")
+                except Exception as exc:
+                    errors.append(f"Block {i+1}: Execution error: {exc}")
+
+            if errors:
+                return CheckResult(
+                    name="code_execution",
+                    passed=False,
+                    details=f"Code execution failed: {'; '.join(errors)}",
+                )
+
+        return CheckResult(name="code_execution", passed=True, details="Python code validation passed.")
+
+    elif language == "json":
+        try:
+            json.loads(content)
+            return CheckResult(name="code_execution", passed=True, details="JSON validation passed.")
+        except json.JSONDecodeError as exc:
+            return CheckResult(
+                name="code_execution",
+                passed=False,
+                details=f"JSON validation failed: {exc}",
+            )
+
+    return CheckResult(
+        name="code_execution",
+        passed=True,
+        details=f"Code execution checks for {language} not implemented.",
+    )
+
+
 def run_spec(spec_path: Path) -> RunReport:
     spec = _load_spec(spec_path)
     spec_name = spec.get("name", spec_path.stem)
@@ -216,6 +354,8 @@ def run_spec(spec_path: Path) -> RunReport:
         _check_runnable(spec, exit_code, timed_out),
         _check_completeness(spec, stdout, stderr),
         _check_format(spec, stdout, stderr),
+        _check_security(spec, stdout, stderr),
+        _check_code_execution(spec, stdout, stderr),
     ]
 
     return RunReport(
@@ -262,6 +402,15 @@ def main() -> int:
         action="store_true",
         help="Always print captured stdout/stderr.",
     )
+    parser.add_argument(
+        "--work-order-id",
+        help="Work order ID to associate with this QA run (for database logging).",
+    )
+    parser.add_argument(
+        "--log-to-db",
+        action="store_true",
+        help="Log QA results to database.",
+    )
 
     args = parser.parse_args()
     spec_path = Path(args.spec)
@@ -282,6 +431,32 @@ def main() -> int:
         report_path = Path(args.report_json)
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
+
+    # Log to database if requested
+    if args.log_to_db:
+        try:
+            # Import here to avoid dependency if not using database
+            from db.client import AuditLog, get_db_client
+
+            db = get_db_client()
+            audit = AuditLog(
+                work_order_id=args.work_order_id,
+                session_id=None,
+                actor="qa_runner",
+                action="qa_validation",
+                status="success" if report.passed else "failure",
+                details={
+                    "spec_name": report.spec_name,
+                    "command": report.command,
+                    "duration_ms": report.duration_ms,
+                    "checks": [asdict(check) for check in report.checks],
+                },
+            )
+            db.log_audit(audit)
+            report.qa_result_logged = True
+            print(f"QA results logged to database (work_order_id={args.work_order_id})")
+        except Exception as exc:
+            print(f"Warning: Failed to log QA results to database: {exc}", file=sys.stderr)
 
     return 0 if report.passed else 1
 

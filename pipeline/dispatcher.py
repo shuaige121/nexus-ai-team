@@ -12,6 +12,13 @@ from nexus_v1.model_router import ModelRouter
 from .queue import QueueManager
 from .work_order import WorkOrderDB
 
+# Optional: Import database logging integration
+try:
+    from db.integration import log_agent_execution, log_audit_event
+    DB_LOGGING_AVAILABLE = True
+except ImportError:
+    DB_LOGGING_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Cost estimation (USD per 1M tokens) based on PROJECT_PLAN.md
@@ -123,6 +130,17 @@ class Dispatcher:
                 details={"owner": wo["owner"]},
             )
 
+            # Additional logging to Phase 3B database (if available)
+            if DB_LOGGING_AVAILABLE:
+                log_audit_event(
+                    actor="dispatcher",
+                    action="process_start",
+                    status="info",
+                    work_order_id=work_order_id,
+                    session_id=payload.get("session_id"),
+                    details={"owner": wo["owner"]},
+                )
+
             # Execute work order via ModelRouter
             result = await self._execute_work_order(wo, payload)
 
@@ -216,6 +234,23 @@ class Dispatcher:
             cost_usd=cost_usd,
             metadata={"difficulty": wo["difficulty"]},
         )
+
+        # Additional logging to Phase 3B database (if available)
+        if DB_LOGGING_AVAILABLE:
+            log_agent_execution(
+                work_order_id=wo["id"],
+                session_id=payload.get("session_id"),
+                agent_name=f"{owner}_agent",
+                role=owner,
+                model=response.model,
+                provider=response.provider,
+                success=True,
+                latency_ms=elapsed_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=cost_usd,
+                metadata={"difficulty": wo["difficulty"]},
+            )
 
         return {
             "content": response.content,

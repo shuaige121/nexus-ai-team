@@ -1,6 +1,6 @@
 # NEXUS Progress Tracker
 
-> Last updated: 2026-02-18
+> Last updated: 2026-02-18 (Phase 3B completed)
 
 ## Phase 1: Foundation — Status
 
@@ -55,6 +55,12 @@
 | Gateway API endpoints | cl | DONE | YES | /api/agents, /api/work-orders, /api/metrics |
 | Frontend pages | cl | DONE | YES | Chat (WebSocket), WorkOrders, Metrics with live data |
 | Documentation | cl | DONE | YES | README updated with Web GUI usage |
+| Phase 3B: QA Pipeline + PostgreSQL Logging | cl | DONE | YES | Enhanced QA validation, dual-database logging with auto-fallback |
+| Enhanced QA runner | cl | DONE | YES | Security checks, code execution validation, database logging |
+| QA spec examples | cl | DONE | YES | 4 example specs: JSON, Python, security, work order response |
+| Database client | cl | DONE | YES | PostgreSQL/SQLite dual support with automatic fallback |
+| Database integration | cl | DONE | YES | Logging helpers integrated into pipeline dispatcher |
+| Documentation updates | cl | DONE | YES | README with QA/logging config, examples, environment variables |
 
 ## Key Commands
 
@@ -71,7 +77,11 @@ npm run build  # Production build
 
 # Run tests
 python3 -m unittest agents.test_litellm_dry_run -v
-python3 qa/runner.py --spec qa/specs/sample_success.json
+
+# Run QA validation (Phase 3B)
+python3 qa/runner.py --spec qa/specs/example_json_output.json
+python3 qa/runner.py --spec qa/specs/security_check.json
+python3 qa/runner.py --spec qa/specs/work_order_response.json --log-to-db --work-order-id wo-test
 
 # Lint
 ruff check agents gateway interfaces qa

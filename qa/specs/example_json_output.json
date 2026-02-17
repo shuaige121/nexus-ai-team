@@ -1,0 +1,27 @@
+{
+  "name": "JSON Output Validation",
+  "command": "echo '{\"status\": \"success\", \"result\": {\"value\": 42}}'",
+  "timeout_seconds": 10,
+  "use_shell": true,
+  "expected_exit_code": 0,
+  "format": {
+    "type": "json",
+    "source": "stdout",
+    "required_keys": ["status", "result"],
+    "required_paths": ["result.value"]
+  },
+  "completeness": {
+    "source": "stdout",
+    "required_substrings": ["success"],
+    "forbidden_substrings": ["error", "failed", "TODO"]
+  },
+  "security": {
+    "enabled": true,
+    "source": "combined",
+    "check_placeholders": true,
+    "forbidden_patterns": []
+  },
+  "code_execution": {
+    "enabled": false
+  }
+}

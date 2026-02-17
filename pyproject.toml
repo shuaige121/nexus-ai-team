@@ -37,3 +37,6 @@ quote-style = "double"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.setuptools]
+packages = ["gateway", "nexus_v1", "pipeline", "db", "agents", "interfaces", "equipment", "company", "agentoffice", "qa", "dashboard"]

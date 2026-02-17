@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
 
     # --- Database ---
-    database_url: str = "postgresql+psycopg://nexus:nexus@localhost:5432/nexus"
+    database_url: str = "postgresql://nexus:nexus@localhost:5432/nexus"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

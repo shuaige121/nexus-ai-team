@@ -71,11 +71,13 @@ nexus-ai-team/
 │       ├── commands.py   # /status /escalate /cost /audit
 │       └── format.py     # MarkdownV2 escaping + text splitting
 ├── qa/                   # QA validation framework
-│   ├── runner.py         # Spec-based test runner
+│   ├── runner.py         # Enhanced spec-based test runner with security checks
 │   ├── specs/            # JSON test specifications
 │   └── tests/            # Mock tasks for testing
-├── db/
-│   └── schema.sql        # PostgreSQL schema (work_orders, sessions, audit, metrics)
+├── db/                   # Database layer with PostgreSQL/SQLite support
+│   ├── schema.sql        # PostgreSQL schema (work_orders, sessions, audit, metrics)
+│   ├── client.py         # Database client with automatic fallback
+│   └── integration.py    # Integration helpers for gateway/pipeline
 ├── equipment/            # Automation scripts, cron jobs (Phase 3+)
 ├── docker-compose.yml    # PostgreSQL + Redis + App services
 ├── pyproject.toml        # Python project config + dependencies
@@ -186,8 +188,17 @@ asyncio.run(main())
 # Unit tests
 python3 -m unittest agents.test_litellm_dry_run -v
 
-# QA runner
-python3 qa/runner.py --spec qa/specs/sample_success.json
+# QA runner (basic validation)
+python3 qa/runner.py --spec qa/specs/example_json_output.json
+
+# QA runner with database logging
+python3 qa/runner.py --spec qa/specs/work_order_response.json --log-to-db --work-order-id wo-123
+
+# Run security check spec
+python3 qa/runner.py --spec qa/specs/security_check.json
+
+# Run Python code validation spec
+python3 qa/runner.py --spec qa/specs/example_python_code.json
 
 # Lint
 ruff check agents gateway interfaces qa
@@ -205,6 +216,141 @@ See `.env.example` for the complete list. Key variables:
 | `OLLAMA_BASE_URL` | Optional | Ollama server URL (default: localhost:11434) |
 | `API_SECRET` | Optional | Bearer token for gateway auth (empty = no auth) |
 | `REDIS_URL` | Optional | Redis connection URL |
+| `DATABASE_URL` | Optional | PostgreSQL URL (auto-falls back to SQLite if unavailable) |
+| `SQLITE_DB_PATH` | Optional | SQLite database path (default: nexus.db) |
+
+## QA Pipeline & Logging
+
+### QA Validation Framework
+
+The QA pipeline validates work outputs through multiple layers:
+
+1. **Format Validation**: JSON schema validation, regex pattern matching
+2. **Completeness Checks**: Required fields, forbidden placeholders (TODO, FIXME)
+3. **Security Checks**: Detects sensitive information leakage (passwords, API keys, emails)
+4. **Code Execution**: Validates Python code syntax and optionally executes in sandbox
+
+#### QA Spec Structure
+
+Create JSON specs in `qa/specs/` with the following structure:
+
+```json
+{
+  "name": "Validation Name",
+  "command": "echo 'test output'",
+  "timeout_seconds": 10,
+  "expected_exit_code": 0,
+  "format": {
+    "type": "json",
+    "required_keys": ["status", "result"]
+  },
+  "completeness": {
+    "required_substrings": ["success"],
+    "forbidden_substrings": ["TODO", "placeholder"]
+  },
+  "security": {
+    "enabled": true,
+    "check_placeholders": true,
+    "forbidden_patterns": ["sk-[a-zA-Z0-9]{20,}"]
+  },
+  "code_execution": {
+    "enabled": true,
+    "language": "python",
+    "execute_in_sandbox": false
+  }
+}
+```
+
+#### Running QA Checks
+
+```bash
+# Basic validation
+python3 qa/runner.py --spec qa/specs/example_json_output.json
+
+# With database logging
+python3 qa/runner.py \
+  --spec qa/specs/work_order_response.json \
+  --log-to-db \
+  --work-order-id wo-123
+
+# Generate JSON report
+python3 qa/runner.py \
+  --spec qa/specs/security_check.json \
+  --report-json reports/security_check.json
+```
+
+### Database Logging
+
+The system supports dual database backends with automatic fallback:
+
+- **PostgreSQL**: Production-grade logging with full schema (preferred)
+- **SQLite**: Automatic fallback for development/testing
+
+#### Logged Data
+
+1. **Work Orders**: Creation, status updates, completion times
+2. **Agent Metrics**: Token usage, latency, cost per execution
+3. **Audit Logs**: All system actions for compliance tracking
+4. **Sessions**: User sessions across Telegram/Web GUI
+
+#### Database Configuration
+
+```bash
+# PostgreSQL (recommended for production)
+export DATABASE_URL="postgresql://nexus:nexus@localhost:5432/nexus"
+
+# SQLite fallback (automatic if PostgreSQL unavailable)
+export SQLITE_DB_PATH="./nexus.db"
+```
+
+#### Querying Metrics
+
+```python
+from db.client import get_db_client
+from datetime import datetime, timedelta
+
+client = get_db_client()
+
+# Query metrics from last 24 hours
+metrics = client.query_metrics(
+    start_time=datetime.now() - timedelta(days=1),
+    agent_name="ceo_agent",
+    limit=100
+)
+
+# Calculate total cost
+total_cost = sum(m["cost_usd"] for m in metrics)
+```
+
+#### Integration in Custom Code
+
+```python
+from db.integration import log_agent_execution, log_audit_event
+
+# Log agent execution
+log_agent_execution(
+    work_order_id="wo-123",
+    session_id="sess-456",
+    agent_name="director_agent",
+    role="director",
+    model="claude-sonnet-4-5",
+    provider="anthropic",
+    success=True,
+    latency_ms=1250,
+    prompt_tokens=500,
+    completion_tokens=200,
+    cost_usd=0.0042
+)
+
+# Log audit event
+log_audit_event(
+    actor="system",
+    action="work_order_created",
+    status="success",
+    work_order_id="wo-123",
+    details={"difficulty": "normal", "owner": "director"}
+)
+```
 
 ## Development
 

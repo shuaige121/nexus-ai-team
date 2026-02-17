@@ -1,0 +1,26 @@
+{
+  "name": "Security Validation",
+  "command": "echo 'This is a safe output without sensitive data'",
+  "timeout_seconds": 5,
+  "use_shell": true,
+  "expected_exit_code": 0,
+  "format": {
+    "type": "none"
+  },
+  "completeness": {
+    "source": "stdout",
+    "forbidden_substrings": ["password", "api_key", "secret"]
+  },
+  "security": {
+    "enabled": true,
+    "source": "combined",
+    "check_placeholders": true,
+    "forbidden_patterns": [
+      "sk-[a-zA-Z0-9]{20,}",
+      "ghp_[a-zA-Z0-9]{36}"
+    ]
+  },
+  "code_execution": {
+    "enabled": false
+  }
+}
