@@ -1,5 +1,26 @@
 # AgentOffice 组织登记表
 agents:
+  ceo:
+    role: ceo
+    department: executive
+    reports_to: board
+    model: opus
+    created: 2026-02-16
+    status: active
+  hr:
+    role: hr
+    department: executive
+    reports_to: ceo
+    model: sonnet
+    created: 2026-02-16
+    status: active
+  it-support:
+    role: it-support
+    department: executive
+    reports_to: hr
+    model: sonnet
+    created: 2026-02-16
+    status: active
   dept-gw-manager:
     role: manager
     department: dept-gateway

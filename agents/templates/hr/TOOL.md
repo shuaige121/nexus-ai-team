@@ -14,8 +14,9 @@
   - 用途: 记录组织架构、Agent 列表、招聘/裁撤日志
 
 ## Agent 管理工具
-- `create_agent.sh <role> <department> <reports_to>` — 创建新 Agent 实例
+- `create_agent.sh <agent_id> <role> <department> <reports_to>` — 创建新 Agent 实例
   - 参数说明:
+    - `agent_id`: 新 Agent 的唯一标识（如 `dept-gw-dev-01`）
     - `role`: 角色类型（`worker`, `qa`, `manager`）
     - `department`: 所属部门名称
     - `reports_to`: 汇报对象的 Agent ID

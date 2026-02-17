@@ -282,6 +282,15 @@ CLAUDE_ARGS+=("--model" "$MODEL")
 CLAUDE_ARGS+=("--system-prompt" "$SYSTEM_PROMPT")
 CLAUDE_ARGS+=("--verbose")
 
+# Build a properly quoted command string for bash -c
+# Using printf %q to escape each argument preserves spaces/quotes in SYSTEM_PROMPT
+QUOTED_CMD="cd $(printf '%q' "$AGENT_DIR")"
+QUOTED_CMD+=" && $(printf '%q' "$CLAUDE_CMD")"
+for arg in "${CLAUDE_ARGS[@]}"; do
+    QUOTED_CMD+=" $(printf '%q' "$arg")"
+done
+QUOTED_CMD+=" $(printf '%q' "$AGENT_PROMPT")"
+
 # --- Determine execution user ------------------------------------------------
 
 # If we have sudo privileges and a dedicated Linux user exists, run as that user
@@ -307,11 +316,10 @@ echo "  Background: ${BACKGROUND}"
 if [[ "$BACKGROUND" == true ]]; then
     # Background mode: use nohup, redirect output to log, record PID
     if [[ -n "$RUN_AS_USER" ]]; then
-        nohup sudo -u "$RUN_AS_USER" \
-            bash -c "cd \"${AGENT_DIR}\" && ${CLAUDE_CMD} ${CLAUDE_ARGS[*]} \"${AGENT_PROMPT}\"" \
+        nohup sudo -u "$RUN_AS_USER" bash -c "$QUOTED_CMD" \
             > "$LOG_FILE" 2>&1 &
     else
-        nohup bash -c "cd \"${AGENT_DIR}\" && ${CLAUDE_CMD} ${CLAUDE_ARGS[*]} \"${AGENT_PROMPT}\"" \
+        nohup bash -c "$QUOTED_CMD" \
             > "$LOG_FILE" 2>&1 &
     fi
 
@@ -329,11 +337,10 @@ if [[ "$BACKGROUND" == true ]]; then
 else
     # Foreground mode: run directly, record PID, clean up on exit
     if [[ -n "$RUN_AS_USER" ]]; then
-        sudo -u "$RUN_AS_USER" \
-            bash -c "cd \"${AGENT_DIR}\" && ${CLAUDE_CMD} ${CLAUDE_ARGS[*]} \"${AGENT_PROMPT}\"" \
+        sudo -u "$RUN_AS_USER" bash -c "$QUOTED_CMD" \
             > >(tee -a "$LOG_FILE") 2>&1 &
     else
-        bash -c "cd \"${AGENT_DIR}\" && ${CLAUDE_CMD} ${CLAUDE_ARGS[*]} \"${AGENT_PROMPT}\"" \
+        bash -c "$QUOTED_CMD" \
             > >(tee -a "$LOG_FILE") 2>&1 &
     fi
 

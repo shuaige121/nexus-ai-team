@@ -189,7 +189,7 @@ trap 'rm -f "$TEMP_FILE"' EXIT
 
 in_block=false
 while IFS= read -r line; do
-    if [[ "$line" =~ ^-\ \`${TOOL_NAME}\` ]]; then
+    if [[ "$line" == "- \`${TOOL_NAME}\`"* ]]; then
         # Start of the tool block — skip this line
         in_block=true
         continue

@@ -153,7 +153,7 @@ fi
 
 # --- Check if tool is already registered -------------------------------------
 
-if grep -q "^\- \`${TOOL_NAME}\`" "$TOOL_MD" 2>/dev/null; then
+if grep -qF -- "- \`${TOOL_NAME}\`" "$TOOL_MD" 2>/dev/null; then
     echo "Error: Tool '${TOOL_NAME}' is already registered in ${TARGET_AGENT}/TOOL.md." >&2
     echo "Remove it first with remove_tool.sh if you want to reinstall." >&2
     exit 1

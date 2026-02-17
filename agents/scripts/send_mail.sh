@@ -12,7 +12,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_ROOT="${AGENTOFFICE_ROOT:-"$(dirname "$SCRIPT_DIR")"}"
 
-VALID_TYPES=("contract" "report" "request" "hire" "fire" "review" "result" "tool_request" "tool_installed")
+VALID_TYPES=(
+    # original types
+    "contract" "report" "request" "hire" "fire" "review" "result"
+    "tool_request" "tool_installed"
+    # CEO types
+    "directive" "review_feedback" "inquiry" "hr_request"
+    # HR types
+    "agent_created" "agent_deleted" "confirmation"
+    # IT-Support types
+    "tool_configured" "tool_fixed"
+    # Manager types
+    "sub_contract" "qa_request" "completion_report" "hire_request"
+    "fire_request" "status_update" "rework_request"
+    # QA types
+    "qa_report" "blocked"
+    # Worker types
+    "task_completed" "context_overflow"
+)
 VALID_PRIORITIES=("high" "medium" "low")
 
 usage() {
@@ -24,8 +41,7 @@ Send a mail message from one agent to another.
 Arguments:
   from       Sender agent ID (e.g. ceo, hr, it-support)
   to         Recipient agent ID
-  type       Mail type: contract | report | request | hire | fire | review |
-             result | tool_request | tool_installed
+  type       Mail type (see TOOL.md for allowed types per role)
   subject    Mail subject (hyphen-separated, no spaces)
   priority   Optional: high | medium | low (default: medium)
 
@@ -101,7 +117,11 @@ fi
 
 # --- Build the mail ---------------------------------------------------------
 
-TIMESTAMP_FILE="$(date +%Y%m%d_%H%M%S)"
+# Use nanosecond precision to prevent same-second filename collisions.
+# Format: YYYYMMDD_HHMMSSxxxxxxxxx (9 extra nanosecond digits in time part).
+# check_inbox.sh only reads the first 6 chars of the time part for display,
+# so this is fully backwards-compatible.
+TIMESTAMP_FILE="$(date +%Y%m%d_%H%M%S%N)"
 TIMESTAMP_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 FILENAME="${TIMESTAMP_FILE}_${FROM}_${TYPE}_${SUBJECT}.md"

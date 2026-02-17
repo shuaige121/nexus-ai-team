@@ -92,10 +92,11 @@ case "$ACTION" in
         # The appended result: current + newline + new content
         COMBINED="${CURRENT}
 ${NEW_CONTENT}"
-        COMBINED_LEN=${#COMBINED}
+        # +1 for trailing newline added by printf '%s\n'
+        COMBINED_LEN=$(( ${#COMBINED} + 1 ))
 
         if [[ $COMBINED_LEN -gt $MEMORY_CHAR_LIMIT ]]; then
-            REMAINING=$((MEMORY_CHAR_LIMIT - CURRENT_LEN))
+            REMAINING=$((MEMORY_CHAR_LIMIT - CURRENT_LEN - 1))
             echo "Error: Write would exceed the ${MEMORY_CHAR_LIMIT}-character limit." >&2
             echo "  Current size:  ${CURRENT_LEN} characters" >&2
             echo "  Content to add: ${#NEW_CONTENT} characters (+ 1 newline)" >&2
@@ -114,7 +115,8 @@ ${NEW_CONTENT}"
             exit 1
         fi
 
-        NEW_LEN=${#NEW_CONTENT}
+        # +1 for trailing newline added by printf '%s\n'
+        NEW_LEN=$(( ${#NEW_CONTENT} + 1 ))
 
         if [[ $NEW_LEN -gt $MEMORY_CHAR_LIMIT ]]; then
             echo "Error: Content exceeds the ${MEMORY_CHAR_LIMIT}-character limit." >&2

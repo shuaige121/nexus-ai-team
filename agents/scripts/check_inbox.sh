@@ -10,7 +10,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_ROOT="${AGENTOFFICE_ROOT:-"$(dirname "$SCRIPT_DIR")"}"
 
-VALID_TYPES=("contract" "report" "request" "hire" "fire" "review" "result" "tool_request" "tool_installed")
+VALID_TYPES=(
+    "contract" "report" "request" "hire" "fire" "review" "result"
+    "tool_request" "tool_installed"
+    "directive" "review_feedback" "inquiry" "hr_request"
+    "agent_created" "agent_deleted" "confirmation"
+    "tool_configured" "tool_fixed"
+    "sub_contract" "qa_request" "completion_report" "hire_request"
+    "fire_request" "status_update" "rework_request"
+    "qa_report" "blocked"
+    "task_completed" "context_overflow"
+)
 
 usage() {
     cat <<'EOF'
@@ -124,9 +134,9 @@ parse_and_print() {
     fi
 
     # Skip files that don't match the mail naming convention
-    # Mail files: YYYYMMDD_HHMMSS_from_type_subject.md
+    # Mail files: YYYYMMDD_HHMMSS[nanoseconds]_from_type_subject.md
     # Contract files (CTR-*.md) and other non-mail files are skipped
-    if [[ ! "$filename" =~ ^[0-9]{8}_[0-9]{6}_ ]]; then
+    if [[ ! "$filename" =~ ^[0-9]{8}_[0-9]{6,}_ ]]; then
         return
     fi
 
