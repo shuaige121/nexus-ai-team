@@ -79,6 +79,12 @@ nexus-ai-team/
 │   ├── client.py         # Database client with automatic fallback
 │   └── integration.py    # Integration helpers for gateway/pipeline
 ├── equipment/            # Automation scripts, cron jobs (Phase 3+)
+├── heartbeat/            # Health monitoring and auto-recovery (Phase 4A)
+│   ├── monitor.py        # System health checks
+│   ├── alerts.py         # Telegram/logging notifications
+│   ├── recovery.py       # Auto-recovery actions
+│   ├── service.py        # Standalone service runner
+│   └── README.md         # Installation and configuration
 ├── docker-compose.yml    # PostgreSQL + Redis + App services
 ├── pyproject.toml        # Python project config + dependencies
 ├── .env.example          # All required environment variables
@@ -128,6 +134,9 @@ uvicorn gateway.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 # Health check
 curl http://localhost:8000/health
+
+# Detailed health status
+curl http://localhost:8000/api/health/detailed
 
 # Send a chat message
 curl -X POST http://localhost:8000/api/chat \
@@ -364,11 +373,39 @@ log_audit_event(
 
 ### Development Phases
 
-- **Phase 1 (Current)**: Foundation — Gateway, Model Router, Admin Agent, Telegram Bot, DB Schema, QA
+- **Phase 1**: Foundation — Gateway, Model Router, Admin Agent, Telegram Bot, DB Schema, QA
 - **Phase 2**: Full Org Chart — CEO/Director/Intern routing, escalation, work order pipeline
 - **Phase 3**: Interfaces + QA — Web GUI, full QA pipeline, equipment framework
-- **Phase 4**: Self-Evolution — Heartbeat monitoring, LoRA training, A/B testing
+- **Phase 4A (Current)**: Heartbeat Monitoring — Health checks, alerts, auto-recovery
+- **Phase 4**: Self-Evolution — LoRA training, A/B testing
 - **Phase 5**: Polish + Release — Docker full-stack, documentation, open source
+
+### Heartbeat Monitoring (Phase 4A)
+
+NEXUS includes an automated health monitoring and recovery system. See [heartbeat/README.md](heartbeat/README.md) for details.
+
+**Features**:
+- Periodic health checks for Gateway, Redis, PostgreSQL, Agents, GPU, Token Budget, Disk
+- Telegram notifications for critical/warning alerts
+- Auto-recovery: restart services, cleanup disk, handle stuck agents
+- Flexible deployment: systemd service, cron job, or standalone
+
+**Quick Start**:
+```bash
+# Install dependencies
+pip install aiohttp psutil redis psycopg
+
+# Run once
+python -m heartbeat.service --once --enable-telegram --enable-recovery
+
+# Run as service
+python -m heartbeat.service --enable-telegram --enable-recovery
+
+# Install systemd service
+sudo cp heartbeat/nexus-heartbeat.service /etc/systemd/system/
+sudo systemctl enable nexus-heartbeat
+sudo systemctl start nexus-heartbeat
+```
 
 ## License
 

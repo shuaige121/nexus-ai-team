@@ -1,0 +1,19 @@
+# NEXUS Heartbeat Monitoring via Cron
+#
+# To install:
+#   crontab -e
+#   Then add one of the lines below
+#
+# Notes:
+# - Adjust the path to match your NEXUS installation
+# - The --once flag runs a single health check and exits
+# - Consider using systemd service instead for continuous monitoring
+
+# Check every 5 minutes
+*/5 * * * * cd /home/leonard/Desktop/nexus-ai-team && /home/leonard/Desktop/nexus-ai-team/.venv/bin/python -m heartbeat.service --once --enable-telegram --enable-recovery >> /home/leonard/Desktop/nexus-ai-team/logs/heartbeat-cron.log 2>&1
+
+# Check every 10 minutes
+#*/10 * * * * cd /home/leonard/Desktop/nexus-ai-team && /home/leonard/Desktop/nexus-ai-team/.venv/bin/python -m heartbeat.service --once --enable-telegram --enable-recovery >> /home/leonard/Desktop/nexus-ai-team/logs/heartbeat-cron.log 2>&1
+
+# Check every 30 minutes
+#*/30 * * * * cd /home/leonard/Desktop/nexus-ai-team && /home/leonard/Desktop/nexus-ai-team/.venv/bin/python -m heartbeat.service --once --enable-telegram --enable-recovery >> /home/leonard/Desktop/nexus-ai-team/logs/heartbeat-cron.log 2>&1

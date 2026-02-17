@@ -6,9 +6,11 @@ Run with:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +35,7 @@ db: WorkOrderDB | None = None
 queue: QueueManager | None = None
 dispatcher: Dispatcher | None = None
 admin_agent: AdminAgent | None = None
+health_broadcast_task: asyncio.Task | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -40,9 +43,63 @@ admin_agent: AdminAgent | None = None
 # ---------------------------------------------------------------------------
 
 
+async def health_broadcast_loop():
+    """Background task to periodically broadcast health status via WebSocket."""
+    await asyncio.sleep(10)  # Wait for startup
+
+    while True:
+        try:
+            # Only broadcast if there are active WebSocket connections
+            if manager.active_count > 0:
+                # Get health status (reuse the detailed_health logic)
+                health_report = {
+                    "timestamp": datetime.now().isoformat(),
+                    "gateway": {"status": "healthy", "message": "Gateway responding"},
+                    "redis": {"status": "unknown", "message": "Not checked"},
+                    "postgres": {"status": "unknown", "message": "Not checked"},
+                }
+
+                # Check Redis
+                if queue:
+                    try:
+                        await queue._redis.ping()
+                        health_report["redis"] = {
+                            "status": "healthy",
+                            "message": "Redis connected",
+                        }
+                    except Exception:
+                        health_report["redis"] = {
+                            "status": "critical",
+                            "message": "Redis unreachable",
+                        }
+
+                # Check PostgreSQL
+                if db:
+                    try:
+                        async with db._conn.cursor() as cur:
+                            await cur.execute("SELECT 1")
+                        health_report["postgres"] = {
+                            "status": "healthy",
+                            "message": "PostgreSQL connected",
+                        }
+                    except Exception:
+                        health_report["postgres"] = {
+                            "status": "critical",
+                            "message": "PostgreSQL unreachable",
+                        }
+
+                # Broadcast to WebSocket clients
+                await manager.broadcast_health_status(health_report)
+
+        except Exception:
+            logger.exception("Error in health broadcast loop")
+
+        await asyncio.sleep(60)  # Check every 60 seconds
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db, queue, dispatcher, admin_agent
+    global db, queue, dispatcher, admin_agent, health_broadcast_task
 
     logger.info("NEXUS Gateway starting on %s:%s", settings.host, settings.port)
     if not settings.api_secret:
@@ -62,6 +119,9 @@ async def lifespan(app: FastAPI):
 
         admin_agent = AdminAgent(router=router, use_llm=False)  # LLM disabled for faster startup
 
+        # Start health broadcast task
+        health_broadcast_task = asyncio.create_task(health_broadcast_loop())
+
         logger.info("Pipeline initialized and dispatcher started")
     except Exception:
         logger.exception("Failed to initialize pipeline")
@@ -69,6 +129,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    if health_broadcast_task:
+        health_broadcast_task.cancel()
+        try:
+            await health_broadcast_task
+        except asyncio.CancelledError:
+            pass
     if dispatcher:
         await dispatcher.stop()
     if queue:
@@ -117,6 +183,124 @@ app.add_middleware(AuthMiddleware)
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 async def health():
     return HealthResponse()
+
+
+@app.get("/api/health/detailed", tags=["system"])
+async def detailed_health():
+    """Detailed system health check for monitoring.
+
+    Returns comprehensive health status of all components:
+    - Gateway (this service)
+    - Redis connectivity
+    - PostgreSQL connectivity
+    - Agent activity
+    - System metrics
+    """
+    health_report = {
+        "timestamp": datetime.now().isoformat(),
+        "gateway": {"status": "healthy", "message": "Gateway responding"},
+        "redis": {"status": "unknown", "message": "Not checked"},
+        "postgres": {"status": "unknown", "message": "Not checked"},
+        "agents": {"status": "unknown", "message": "Not checked"},
+        "metrics": {},
+    }
+
+    # Check Redis
+    if queue:
+        try:
+            await queue._redis.ping()
+            info = await queue._redis.info("memory")
+            used_memory_mb = info.get("used_memory", 0) / 1024 / 1024
+            health_report["redis"] = {
+                "status": "healthy",
+                "message": "Redis connected",
+                "used_memory_mb": round(used_memory_mb, 2),
+            }
+        except Exception as e:
+            health_report["redis"] = {
+                "status": "critical",
+                "message": f"Redis error: {e}",
+            }
+
+    # Check PostgreSQL
+    if db:
+        try:
+            async with db._conn.cursor() as cur:
+                await cur.execute("SELECT COUNT(*) FROM work_orders WHERE status = 'in_progress'")
+                result = await cur.fetchone()
+                in_progress_count = result[0] if result else 0
+
+                await cur.execute("SELECT COUNT(*) FROM work_orders")
+                result = await cur.fetchone()
+                total_count = result[0] if result else 0
+
+            health_report["postgres"] = {
+                "status": "healthy",
+                "message": "PostgreSQL connected",
+                "work_orders_total": total_count,
+                "work_orders_in_progress": in_progress_count,
+            }
+
+            # Check for stale work orders (agents potentially stuck)
+            async with db._conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT COUNT(*) FROM work_orders
+                    WHERE status = 'in_progress'
+                    AND updated_at < NOW() - INTERVAL '5 minutes'
+                    """
+                )
+                result = await cur.fetchone()
+                stale_count = result[0] if result else 0
+
+            if stale_count > 0:
+                health_report["agents"] = {
+                    "status": "degraded",
+                    "message": f"{stale_count} agent(s) may be stuck",
+                    "stale_work_orders": stale_count,
+                }
+            else:
+                health_report["agents"] = {
+                    "status": "healthy",
+                    "message": "Agents active",
+                }
+
+        except Exception as e:
+            health_report["postgres"] = {
+                "status": "critical",
+                "message": f"PostgreSQL error: {e}",
+            }
+
+    # Add system metrics
+    try:
+        cost_summary = await db.get_cost_summary(period="today") if db else {}
+        health_report["metrics"] = {
+            "tokens_today": cost_summary.get("total_tokens", 0),
+            "cost_today_usd": cost_summary.get("total_cost", 0),
+        }
+    except Exception:
+        pass
+
+    # Determine overall status
+    statuses = [
+        health_report["gateway"]["status"],
+        health_report["redis"]["status"],
+        health_report["postgres"]["status"],
+        health_report["agents"]["status"],
+    ]
+
+    if any(s == "critical" for s in statuses):
+        overall_status = "critical"
+    elif any(s == "degraded" for s in statuses):
+        overall_status = "degraded"
+    elif all(s == "healthy" for s in statuses if s != "unknown"):
+        overall_status = "healthy"
+    else:
+        overall_status = "unknown"
+
+    health_report["overall_status"] = overall_status
+
+    return health_report
 
 
 @app.get("/api/agents", tags=["agents"])

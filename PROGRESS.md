@@ -1,6 +1,6 @@
 # NEXUS Progress Tracker
 
-> Last updated: 2026-02-18 (Phase 3B completed)
+> Last updated: 2026-02-18 (Phase 4A completed)
 
 ## Phase 1: Foundation — Status
 
@@ -61,6 +61,19 @@
 | Database client | cl | DONE | YES | PostgreSQL/SQLite dual support with automatic fallback |
 | Database integration | cl | DONE | YES | Logging helpers integrated into pipeline dispatcher |
 | Documentation updates | cl | DONE | YES | README with QA/logging config, examples, environment variables |
+| Phase 3C: Equipment Framework | cl | DONE | YES | Automation scripts, registration system, log rotation |
+
+## Phase 4: Self-Evolution — Status
+
+| Task | Owner | Status | Verified | Notes |
+|------|-------|--------|----------|-------|
+| Phase 4A: Heartbeat Monitoring | cl | DONE | YES | Health checks, alerts, auto-recovery, systemd/cron support |
+| Health monitor | cl | DONE | YES | Checks Gateway, Redis, PostgreSQL, Agents, GPU, Budget, Disk |
+| Alert manager | cl | DONE | YES | Telegram notifications with rate limiting, logging |
+| Recovery manager | cl | DONE | YES | Auto-restart services, disk cleanup, stuck agent detection |
+| Service deployment | cl | DONE | YES | Systemd service, cron example, standalone runner |
+| Gateway integration | cl | DONE | YES | /api/health/detailed endpoint, WebSocket health broadcasts |
+| Documentation | cl | DONE | YES | heartbeat/README.md with installation and configuration |
 
 ## Key Commands
 
@@ -83,8 +96,13 @@ python3 qa/runner.py --spec qa/specs/example_json_output.json
 python3 qa/runner.py --spec qa/specs/security_check.json
 python3 qa/runner.py --spec qa/specs/work_order_response.json --log-to-db --work-order-id wo-test
 
+# Heartbeat monitoring (Phase 4A)
+python -m heartbeat.service --once --enable-telegram --enable-recovery
+python -m heartbeat.service --enable-telegram --enable-recovery  # Continuous
+sudo systemctl status nexus-heartbeat  # If installed as service
+
 # Lint
-ruff check agents gateway interfaces qa
+ruff check agents gateway interfaces qa heartbeat
 
 # Docker infra
 docker compose --env-file .env up -d

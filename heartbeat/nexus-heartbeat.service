@@ -1,0 +1,27 @@
+[Unit]
+Description=NEXUS Heartbeat Monitoring Service
+After=network.target nexus-gateway.service
+Wants=nexus-gateway.service
+
+[Service]
+Type=simple
+User=leonard
+Group=leonard
+WorkingDirectory=/home/leonard/Desktop/nexus-ai-team
+Environment="PATH=/home/leonard/Desktop/nexus-ai-team/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/leonard/Desktop/nexus-ai-team/.env
+
+ExecStart=/home/leonard/Desktop/nexus-ai-team/.venv/bin/python -m heartbeat.service \
+    --check-interval 30 \
+    --enable-telegram \
+    --enable-recovery \
+    --enable-restart
+
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nexus-heartbeat
+
+[Install]
+WantedBy=multi-user.target

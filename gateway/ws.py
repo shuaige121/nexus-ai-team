@@ -80,6 +80,10 @@ class ConnectionManager:
         for cid in dead:
             self.disconnect(cid)
 
+    async def broadcast_health_status(self, health_report: dict) -> None:
+        """Broadcast health status change to all connected clients."""
+        await self.broadcast("health.update", health_report)
+
     # --- internal helpers ---
 
     async def _dispatch_request(self, ws: WebSocket, req: WSRequest) -> None:
