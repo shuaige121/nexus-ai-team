@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # --- Auth ---
     api_secret: str = ""
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str  # Required: Must be set via environment variable
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
 
     # --- Database ---
-    database_url: str = "postgresql://nexus:nexus@localhost:5432/nexus"
+    database_url: str  # Required: Must be set via environment variable
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

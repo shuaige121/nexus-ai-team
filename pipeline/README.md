@@ -73,7 +73,7 @@ pip install -e ".[dev]"
 cp .env.example .env
 
 # 编辑 .env，至少配置：
-# - DATABASE_URL=postgresql+psycopg://nexus:nexus@localhost:5432/nexus
+# - DATABASE_URL=postgresql+psycopg://nexus:your-password@localhost:5432/nexus
 # - REDIS_URL=redis://localhost:6379/0
 # - ANTHROPIC_API_KEY=sk-ant-...
 # - TELEGRAM_BOT_TOKEN=...
@@ -114,7 +114,7 @@ PostgreSQL 工作单管理：
 ```python
 from pipeline import WorkOrderDB
 
-db = WorkOrderDB("postgresql+psycopg://nexus:nexus@localhost:5432/nexus")
+db = WorkOrderDB("postgresql+psycopg://nexus:your-password@localhost:5432/nexus")
 await db.connect()
 
 # 创建工作单

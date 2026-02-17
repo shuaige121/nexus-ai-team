@@ -297,7 +297,8 @@ The system supports dual database backends with automatic fallback:
 
 ```bash
 # PostgreSQL (recommended for production)
-export DATABASE_URL="postgresql://nexus:nexus@localhost:5432/nexus"
+# Replace 'your-password' with a strong password
+export DATABASE_URL="postgresql://nexus:your-password@localhost:5432/nexus"
 
 # SQLite fallback (automatic if PostgreSQL unavailable)
 export SQLITE_DB_PATH="./nexus.db"
