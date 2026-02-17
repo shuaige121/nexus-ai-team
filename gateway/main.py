@@ -82,17 +82,46 @@ async def health():
 
 @app.post("/api/chat", tags=["chat"])
 async def chat(message: dict):
-    """HTTP fallback for sending a chat message (non-WebSocket clients)."""
+    """
+    Process user message through complete Phase 2A execution pipeline.
+    Flow: Admin → Route → Execute (with escalation) → QA → Return
+    """
     content = message.get("content", "")
     if not content:
         return {"ok": False, "error": "Empty message"}
 
-    # Placeholder — will be wired to Admin agent routing
-    return {
-        "ok": True,
-        "message": "Received. Processing via agent pipeline...",
-        "work_order_id": f"WO-{uuid.uuid4().hex[:8]}",
-    }
+    # Import here to avoid circular dependencies
+    from agents.execution.pipeline import ExecutionPipeline
+
+    # Optional conversation history
+    conversation = message.get("conversation", [])
+
+    # Process through complete pipeline
+    try:
+        pipeline = ExecutionPipeline()
+        result = await pipeline.process(content, conversation or None)
+
+        response = {
+            "ok": result.success,
+            "work_order_id": result.work_order_id,
+            "output": result.output,
+            "qa_passed": result.qa_passed,
+            "escalation": result.escalation_info,
+        }
+
+        # If Board intervention needed, include notification
+        if result.board_notification:
+            response["board_notification"] = result.board_notification
+            response["requires_board"] = True
+
+        return response
+
+    except Exception as exc:
+        logger.exception("Pipeline execution failed")
+        return {
+            "ok": False,
+            "error": f"Pipeline error: {str(exc)}",
+        }
 
 
 # ---------------------------------------------------------------------------
