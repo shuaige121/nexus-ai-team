@@ -1,6 +1,6 @@
 # NEXUS Progress Tracker
 
-> Last updated: 2026-02-16
+> Last updated: 2026-02-18
 
 ## Phase 1: Foundation — Status
 
@@ -40,12 +40,34 @@
 | 2026-02-16 | Added python-telegram-bot to deps | Was missing from pyproject.toml |
 | 2026-02-16 | Rewrote .gitignore for Python | Was Node.js template |
 
+## Phase 2: Full Org Chart — Status
+
+| Task | Owner | Status | Verified | Notes |
+|------|-------|--------|----------|-------|
+| Phase 2A: Execution Layer | cl | DONE | YES | CEO/Director/Intern agents, escalation system |
+| Phase 2B: Message Pipeline | cl | DONE | YES | Redis Streams, Dispatcher, Telegram integration |
+
+## Phase 3: Interfaces + QA — Status
+
+| Task | Owner | Status | Verified | Notes |
+|------|-------|--------|----------|-------|
+| Phase 3A: LAN Web GUI | cl | DONE | YES | React dashboard with Chat, Agents, Work Orders, Metrics |
+| Gateway API endpoints | cl | DONE | YES | /api/agents, /api/work-orders, /api/metrics |
+| Frontend pages | cl | DONE | YES | Chat (WebSocket), WorkOrders, Metrics with live data |
+| Documentation | cl | DONE | YES | README updated with Web GUI usage |
+
 ## Key Commands
 
 ```bash
 # Start gateway
 source .venv/bin/activate
-uvicorn gateway.main:app --reload
+uvicorn gateway.main:app --reload --host 0.0.0.0 --port 8000
+
+# Start Web GUI
+cd dashboard/frontend
+npm install
+npm run dev  # Development at http://localhost:5173
+npm run build  # Production build
 
 # Run tests
 python3 -m unittest agents.test_litellm_dry_run -v

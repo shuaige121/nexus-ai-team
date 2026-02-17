@@ -4,10 +4,13 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Sidebar from '@/components/layout/Sidebar'
 import CommandPalette from '@/components/layout/CommandPalette'
 import Dashboard from '@/pages/Dashboard'
+import Chat from '@/pages/Chat'
 import Organization from '@/pages/Organization'
 import Tasks from '@/pages/Tasks'
+import WorkOrders from '@/pages/WorkOrders'
 import HR from '@/pages/HR'
 import Analytics from '@/pages/Analytics'
+import Metrics from '@/pages/Metrics'
 import Settings from '@/pages/Settings'
 
 const pageTransition = {
@@ -44,10 +47,13 @@ export default function App() {
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<AnimatedPage><Dashboard /></AnimatedPage>} />
+            <Route path="/chat" element={<AnimatedPage><Chat /></AnimatedPage>} />
             <Route path="/organization" element={<AnimatedPage><Organization /></AnimatedPage>} />
             <Route path="/tasks" element={<AnimatedPage><Tasks /></AnimatedPage>} />
+            <Route path="/work-orders" element={<AnimatedPage><WorkOrders /></AnimatedPage>} />
             <Route path="/hr" element={<AnimatedPage><HR /></AnimatedPage>} />
             <Route path="/analytics" element={<AnimatedPage><Analytics /></AnimatedPage>} />
+            <Route path="/metrics" element={<AnimatedPage><Metrics /></AnimatedPage>} />
             <Route path="/settings" element={<AnimatedPage><Settings /></AnimatedPage>} />
           </Routes>
         </AnimatePresence>

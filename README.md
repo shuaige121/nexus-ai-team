@@ -90,6 +90,7 @@ nexus-ai-team/
 - Python 3.12+
 - Docker & Docker Compose (for PostgreSQL + Redis)
 - Ollama (optional, for local Qwen3 model)
+- Node.js 18+ (for Web GUI frontend)
 
 ### Installation
 
@@ -117,7 +118,7 @@ cp .env.example .env
 docker compose --env-file .env up -d postgres redis
 
 # Start the gateway
-uvicorn gateway.main:app --reload
+uvicorn gateway.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Test the Gateway
@@ -131,9 +132,37 @@ curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"content": "Hello NEXUS"}'
 
+# Get work orders
+curl http://localhost:8000/api/work-orders
+
+# Get metrics
+curl http://localhost:8000/api/metrics?period=today
+
 # Swagger docs
 open http://localhost:8000/docs
 ```
+
+### Start Web GUI
+
+The Web GUI provides a visual interface to interact with NEXUS. It includes:
+- **Chat**: Real-time conversation with your AI team via WebSocket
+- **Agents**: View all agents and their current status
+- **Work Orders**: Browse and filter work orders by status/owner
+- **Metrics**: Monitor token usage, costs, and system performance
+
+```bash
+# Install frontend dependencies
+cd dashboard/frontend
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+The dashboard will be available at `http://localhost:5173` (dev) or served by the gateway at `http://localhost:8000` (production).
 
 ### Start Telegram Bot
 

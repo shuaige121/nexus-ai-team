@@ -1,15 +1,18 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Network, ListTodo, Users, BarChart3, Settings, Command,
+  LayoutDashboard, MessageSquare, Network, ListTodo, ClipboardList, Users, BarChart3, LineChart, Settings, Command,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '总览' },
+  { to: '/chat', icon: MessageSquare, label: '对话' },
   { to: '/organization', icon: Network, label: '组织架构' },
   { to: '/tasks', icon: ListTodo, label: '任务中心' },
+  { to: '/work-orders', icon: ClipboardList, label: '工作单' },
   { to: '/hr', icon: Users, label: '人事管理' },
   { to: '/analytics', icon: BarChart3, label: '数据分析' },
+  { to: '/metrics', icon: LineChart, label: '指标监控' },
   { to: '/settings', icon: Settings, label: '系统配置' },
 ]
 
