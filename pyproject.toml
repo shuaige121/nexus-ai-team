@@ -39,4 +39,4 @@ quote-style = "double"
 asyncio_mode = "auto"
 
 [tool.setuptools]
-packages = ["gateway", "nexus_v1", "pipeline", "db", "agents", "interfaces", "equipment", "company", "agentoffice", "qa", "dashboard"]
+packages = ["gateway", "nexus_v1", "pipeline", "db", "agents", "interfaces", "equipment", "company", "agentoffice", "qa", "heartbeat"]
