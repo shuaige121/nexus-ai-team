@@ -34,18 +34,27 @@ BOT_COMMANDS: list[BotCommand] = [
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Report high-level system status."""
+    from .gateway_client import GatewayClient
+
     now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Try to fetch real status from gateway
+    try:
+        async with GatewayClient() as client:
+            health_resp = await client._client.get("/health")
+            health_resp.raise_for_status()
+            gateway_status = "online"
+    except Exception:
+        gateway_status = "offline"
+
     lines = [
         "*NEXUS System Status*",
         "",
         f"Time: `{escape_markdown_v2(now)}`",
-        "Bot: online",
-        "Gateway: pending",
-        "Agents: pending",
-        "Redis: pending",
-        "PostgreSQL: pending",
+        f"Bot: online",
+        f"Gateway: {gateway_status}",
         "",
-        "_Status checks will be live once gateway is connected\\._",
+        "_详细状态信息即将推出\\.\\.\\._",
     ]
     await update.effective_message.reply_text(
         "\n".join(lines),
@@ -96,7 +105,6 @@ async def cmd_escalate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def cmd_cost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display token usage and estimated cost."""
-    # TODO: pull real data from PostgreSQL / LiteLLM cost tracker
     lines = [
         "*NEXUS Cost Summary*",
         "",
@@ -108,7 +116,7 @@ async def cmd_cost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "This month    –                   $0.00",
         "```",
         "",
-        "_Cost tracking will be live once LiteLLM proxy is connected\\._",
+        "_成本查询功能即将推出\\.\\.\\._",
     ]
     await update.effective_message.reply_text(
         "\n".join(lines),
@@ -122,11 +130,10 @@ async def cmd_cost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_audit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show the latest audit log entries."""
-    # TODO: pull real entries from PostgreSQL audit table
     lines = [
         "*NEXUS Audit Log*",
         "",
-        "_No entries yet — audit logging starts when the gateway connects\\._",
+        "_审计日志查询功能即将推出\\.\\.\\._",
         "",
         "Usage: `/audit` shows the last 10 entries\\.",
     ]

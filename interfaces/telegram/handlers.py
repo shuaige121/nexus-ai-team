@@ -114,11 +114,34 @@ async def _default_on_message(
     context: ContextTypes.DEFAULT_TYPE,
     msg: InboundMessage,
 ) -> None:
-    """Built-in echo handler used when no custom callback is provided."""
+    """Built-in handler — sends message to gateway and returns response."""
+    from .gateway_client import GatewayClient
+
     if msg.kind == "text":
-        body = escape_markdown_v2(msg.text or "")
+        text_content = msg.text or ""
+
+        # Send to gateway
+        async with GatewayClient() as client:
+            result = await client.send_message(text_content)
+
+        if result.get("ok"):
+            wo_id = result.get("work_order_id", "unknown")
+            difficulty = result.get("difficulty", "unknown")
+            owner = result.get("owner", "unknown")
+
+            response = (
+                f"*已接收您的请求*\n\n"
+                f"工作单: `{escape_markdown_v2(wo_id)}`\n"
+                f"难度: {escape_markdown_v2(difficulty)}\n"
+                f"负责人: {escape_markdown_v2(owner)}\n\n"
+                f"_正在处理，请稍候\\.\\.\\._"
+            )
+        else:
+            error = result.get("error", "Unknown error")
+            response = f"*处理失败*\n\n{escape_markdown_v2(error)}"
+
         await update.effective_message.reply_text(
-            f"*NEXUS 收到文本消息*\n\n{body}",
+            response,
             parse_mode="MarkdownV2",
         )
         return
@@ -126,7 +149,7 @@ async def _default_on_message(
     if msg.kind == "photo":
         caption = f"\n\n说明: {escape_markdown_v2(msg.caption)}" if msg.caption else ""
         await update.effective_message.reply_text(
-            f"*NEXUS 收到图片消息*{caption}",
+            f"*NEXUS 收到图片消息*{caption}\n\n_图片处理功能即将推出\\.\\.\\._",
             parse_mode="MarkdownV2",
         )
         return
@@ -138,7 +161,7 @@ async def _default_on_message(
             else ""
         )
         await update.effective_message.reply_text(
-            f"*NEXUS 收到语音消息*{duration}",
+            f"*NEXUS 收到语音消息*{duration}\n\n_语音处理功能即将推出\\.\\.\\._",
             parse_mode="MarkdownV2",
         )
         return

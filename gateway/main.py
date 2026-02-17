@@ -18,12 +18,21 @@ from gateway.config import settings
 from gateway.rate_limiter import RateLimiterMiddleware
 from gateway.schemas import HealthResponse
 from gateway.ws import manager
+from nexus_v1.admin import AdminAgent
+from nexus_v1.model_router import ModelRouter
+from pipeline import Dispatcher, QueueManager, WorkOrderDB
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
 )
 logger = logging.getLogger("gateway")
+
+# Global pipeline components
+db: WorkOrderDB | None = None
+queue: QueueManager | None = None
+dispatcher: Dispatcher | None = None
+admin_agent: AdminAgent | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -33,10 +42,40 @@ logger = logging.getLogger("gateway")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global db, queue, dispatcher, admin_agent
+
     logger.info("NEXUS Gateway starting on %s:%s", settings.host, settings.port)
     if not settings.api_secret:
         logger.warning("API_SECRET not set — auth is DISABLED (dev mode)")
+
+    # Initialize pipeline
+    try:
+        db = WorkOrderDB(settings.database_url)
+        await db.connect()
+
+        queue = QueueManager(settings.redis_url)
+        await queue.connect()
+
+        router = ModelRouter()
+        dispatcher = Dispatcher(db, queue, router)
+        await dispatcher.start()
+
+        admin_agent = AdminAgent(router=router, use_llm=False)  # LLM disabled for faster startup
+
+        logger.info("Pipeline initialized and dispatcher started")
+    except Exception:
+        logger.exception("Failed to initialize pipeline")
+
     yield
+
+    # Cleanup
+    if dispatcher:
+        await dispatcher.stop()
+    if queue:
+        await queue.close()
+    if db:
+        await db.close()
+
     logger.info("NEXUS Gateway shutting down")
 
 
@@ -82,46 +121,48 @@ async def health():
 
 @app.post("/api/chat", tags=["chat"])
 async def chat(message: dict):
-    """
-    Process user message through complete Phase 2A execution pipeline.
-    Flow: Admin → Route → Execute (with escalation) → QA → Return
-    """
+    """HTTP fallback for sending a chat message (non-WebSocket clients)."""
     content = message.get("content", "")
     if not content:
         return {"ok": False, "error": "Empty message"}
 
-    # Import here to avoid circular dependencies
-    from agents.execution.pipeline import ExecutionPipeline
+    if not admin_agent or not db or not queue:
+        return {"ok": False, "error": "Pipeline not initialized"}
 
-    # Optional conversation history
-    conversation = message.get("conversation", [])
-
-    # Process through complete pipeline
     try:
-        pipeline = ExecutionPipeline()
-        result = await pipeline.process(content, conversation or None)
+        # Create work order via Admin agent
+        wo = admin_agent.create_work_order(user_message=content)
 
-        response = {
-            "ok": result.success,
-            "work_order_id": result.work_order_id,
-            "output": result.output,
-            "qa_passed": result.qa_passed,
-            "escalation": result.escalation_info,
-        }
+        # Store work order in DB
+        await db.create_work_order(
+            wo_id=wo.id,
+            intent=wo.intent,
+            difficulty=wo.difficulty,
+            owner=wo.owner,
+            compressed_context=wo.compressed_context,
+            relevant_files=wo.relevant_files,
+            qa_requirements=wo.qa_requirements,
+        )
 
-        # If Board intervention needed, include notification
-        if result.board_notification:
-            response["board_notification"] = result.board_notification
-            response["requires_board"] = True
+        # Enqueue to Redis Streams
+        await queue.enqueue(
+            wo.id,
+            {
+                "user_message": content,
+                "conversation": [],
+                "session_id": None,
+            },
+        )
 
-        return response
-
-    except Exception as exc:
-        logger.exception("Pipeline execution failed")
         return {
-            "ok": False,
-            "error": f"Pipeline error: {str(exc)}",
+            "ok": True,
+            "work_order_id": wo.id,
+            "difficulty": wo.difficulty,
+            "owner": wo.owner,
         }
+    except Exception as e:
+        logger.exception("Failed to process chat message")
+        return {"ok": False, "error": str(e)}
 
 
 # ---------------------------------------------------------------------------

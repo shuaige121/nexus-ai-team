@@ -84,23 +84,61 @@ class ConnectionManager:
 
     async def _dispatch_request(self, ws: WebSocket, req: WSRequest) -> None:
         """Route a request to the appropriate handler."""
+        from gateway.main import admin_agent, db, queue
+
         method = req.method
 
         if method == "ping":
             await self._send_response(ws, req.id, ok=True, payload={"pong": True})
         elif method == "chat.send":
-            # Placeholder — will be wired to the agent pipeline
-            await self._send_response(
-                ws,
-                req.id,
-                ok=True,
-                payload={"message": "Received. Processing via agent pipeline..."},
-            )
-            await self._send_event(
-                ws,
-                "chat.ack",
-                {"request_id": req.id, "status": "queued"},
-            )
+            if not admin_agent or not db or not queue:
+                await self._send_response(ws, req.id, ok=False, error="Pipeline not initialized")
+                return
+
+            try:
+                user_message = req.params.get("content", "")
+                if not user_message:
+                    await self._send_response(ws, req.id, ok=False, error="Empty message")
+                    return
+
+                # Create work order
+                wo = admin_agent.create_work_order(user_message=user_message)
+
+                # Store in DB
+                await db.create_work_order(
+                    wo_id=wo.id,
+                    intent=wo.intent,
+                    difficulty=wo.difficulty,
+                    owner=wo.owner,
+                    compressed_context=wo.compressed_context,
+                    relevant_files=wo.relevant_files,
+                    qa_requirements=wo.qa_requirements,
+                )
+
+                # Enqueue
+                await queue.enqueue(
+                    wo.id,
+                    {
+                        "user_message": user_message,
+                        "conversation": req.params.get("conversation", []),
+                        "session_id": req.params.get("session_id"),
+                    },
+                )
+
+                await self._send_response(
+                    ws,
+                    req.id,
+                    ok=True,
+                    payload={"work_order_id": wo.id, "difficulty": wo.difficulty, "owner": wo.owner},
+                )
+                await self._send_event(
+                    ws,
+                    "chat.ack",
+                    {"work_order_id": wo.id, "status": "queued"},
+                )
+            except Exception as e:
+                logger.exception("Failed to process chat.send")
+                await self._send_response(ws, req.id, ok=False, error=str(e))
         else:
             await self._send_response(ws, req.id, ok=False, error=f"Unknown method: {method}")
 
