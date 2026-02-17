@@ -123,6 +123,13 @@ parse_and_print() {
         return
     fi
 
+    # Skip files that don't match the mail naming convention
+    # Mail files: YYYYMMDD_HHMMSS_from_type_subject.md
+    # Contract files (CTR-*.md) and other non-mail files are skipped
+    if [[ ! "$filename" =~ ^[0-9]{8}_[0-9]{6}_ ]]; then
+        return
+    fi
+
     # Extract fields from filename: {timestamp}_{from}_{type}_{subject}.md
     # timestamp = YYYYMMDD_HHMMSS (two underscore-separated parts)
     # So pattern: part1_part2_from_type_subject.md
