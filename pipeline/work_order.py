@@ -1,40 +1,67 @@
-"""Work order database operations — create, update, query via PostgreSQL."""
+"""Work order database operations — create, update, query via PostgreSQL.
+
+This is the **async** database client used by the FastAPI gateway and pipeline.
+It uses psycopg3 (async) with connection pooling via psycopg_pool.
+
+For the legacy **sync** client used by CLI scripts, see ``db/client.py``.
+"""
 
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
-from typing import Any
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any, AsyncIterator
 
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
 
 class WorkOrderDB:
-    """PostgreSQL work order manager."""
+    """PostgreSQL work order manager with async connection pooling."""
 
-    def __init__(self, db_url: str) -> None:
+    def __init__(self, db_url: str, *, min_size: int = 2, max_size: int = 10) -> None:
         self.db_url = db_url
-        self._conn: psycopg.Connection | None = None
+        self._min_size = min_size
+        self._max_size = max_size
+        self._pool: AsyncConnectionPool | None = None
 
     async def connect(self) -> None:
-        """Establish async PostgreSQL connection."""
-        self._conn = await psycopg.AsyncConnection.connect(
-            self.db_url,
-            autocommit=False,
-            row_factory=dict_row,
+        """Create and open the async connection pool."""
+        self._pool = AsyncConnectionPool(
+            conninfo=self.db_url,
+            min_size=self._min_size,
+            max_size=self._max_size,
+            open=False,
+            kwargs={"autocommit": False, "row_factory": dict_row},
         )
-        logger.info("WorkOrderDB connected to PostgreSQL")
+        await self._pool.open()
+        logger.info(
+            "WorkOrderDB pool opened (min=%d, max=%d)", self._min_size, self._max_size
+        )
 
     async def close(self) -> None:
-        """Close the database connection."""
-        if self._conn:
-            await self._conn.close()
-            self._conn = None
-            logger.info("WorkOrderDB disconnected")
+        """Close the connection pool."""
+        if self._pool:
+            await self._pool.close()
+            self._pool = None
+            logger.info("WorkOrderDB pool closed")
+
+    @asynccontextmanager
+    async def get_connection(self) -> AsyncIterator[psycopg.AsyncConnection]:
+        """Acquire a connection from the pool as an async context manager."""
+        if not self._pool:
+            raise RuntimeError("Database pool not initialised. Call connect() first.")
+        async with self._pool.connection() as conn:
+            yield conn
+
+    # ------------------------------------------------------------------
+    # Work-order CRUD
+    # ------------------------------------------------------------------
 
     async def create_work_order(
         self,
@@ -49,9 +76,6 @@ class WorkOrderDB:
         deadline: str | None = None,
     ) -> dict[str, Any]:
         """Insert a new work order into the database."""
-        if not self._conn:
-            raise RuntimeError("Database not connected. Call connect() first.")
-
         query = """
             INSERT INTO work_orders (
                 id, intent, difficulty, owner, compressed_context,
@@ -61,35 +85,34 @@ class WorkOrderDB:
             )
             RETURNING id, intent, difficulty, owner, status, created_at
         """
-        async with self._conn.cursor() as cur:
-            await cur.execute(
-                query,
-                (
-                    wo_id,
-                    intent,
-                    difficulty,
-                    owner,
-                    compressed_context,
-                    relevant_files,
-                    qa_requirements,
-                    deadline,
-                ),
-            )
-            result = await cur.fetchone()
-            await self._conn.commit()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    query,
+                    (
+                        wo_id,
+                        intent,
+                        difficulty,
+                        owner,
+                        compressed_context,
+                        relevant_files,
+                        qa_requirements,
+                        deadline,
+                    ),
+                )
+                result = await cur.fetchone()
+                await conn.commit()
 
         logger.info("Created work order: %s (owner=%s, difficulty=%s)", wo_id, owner, difficulty)
         return result or {}
 
     async def get_work_order(self, wo_id: str) -> dict[str, Any] | None:
         """Retrieve a work order by ID."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         query = "SELECT * FROM work_orders WHERE id = %s"
-        async with self._conn.cursor() as cur:
-            await cur.execute(query, (wo_id,))
-            return await cur.fetchone()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, (wo_id,))
+                return await cur.fetchone()
 
     async def update_status(
         self,
@@ -100,9 +123,6 @@ class WorkOrderDB:
         increment_retry: bool = False,
     ) -> None:
         """Update work order status."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         if status == "completed":
             query = """
                 UPDATE work_orders
@@ -125,9 +145,10 @@ class WorkOrderDB:
             """
             params = (status, error, wo_id)
 
-        async with self._conn.cursor() as cur:
-            await cur.execute(query, params)
-            await self._conn.commit()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, params)
+                await conn.commit()
 
         logger.info("Updated work order %s -> %s", wo_id, status)
 
@@ -142,19 +163,17 @@ class WorkOrderDB:
         details: dict[str, Any] | None = None,
     ) -> None:
         """Insert an audit log entry."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         query = """
             INSERT INTO audit_logs (work_order_id, session_id, actor, action, status, details)
             VALUES (%s, %s, %s, %s, %s, %s)
         """
-        async with self._conn.cursor() as cur:
-            await cur.execute(
-                query,
-                (work_order_id, session_id, actor, action, status, Jsonb(details or {})),
-            )
-            await self._conn.commit()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    query,
+                    (work_order_id, session_id, actor, action, status, Jsonb(details or {})),
+                )
+                await conn.commit()
 
         logger.debug("Audit log: %s %s -> %s", actor, action, status)
 
@@ -175,34 +194,32 @@ class WorkOrderDB:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Insert an agent performance metric."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         query = """
             INSERT INTO agent_metrics (
                 work_order_id, session_id, agent_name, role, model, provider,
                 success, latency_ms, prompt_tokens, completion_tokens, cost_usd, metadata
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        async with self._conn.cursor() as cur:
-            await cur.execute(
-                query,
-                (
-                    work_order_id,
-                    session_id,
-                    agent_name,
-                    role,
-                    model,
-                    provider,
-                    success,
-                    latency_ms,
-                    prompt_tokens,
-                    completion_tokens,
-                    cost_usd,
-                    Jsonb(metadata or {}),
-                ),
-            )
-            await self._conn.commit()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    query,
+                    (
+                        work_order_id,
+                        session_id,
+                        agent_name,
+                        role,
+                        model,
+                        provider,
+                        success,
+                        latency_ms,
+                        prompt_tokens,
+                        completion_tokens,
+                        cost_usd,
+                        Jsonb(metadata or {}),
+                    ),
+                )
+                await conn.commit()
 
         logger.debug("Agent metric: %s (role=%s, model=%s)", agent_name, role, model)
 
@@ -210,9 +227,6 @@ class WorkOrderDB:
         self, period: str = "today"
     ) -> dict[str, int | float]:
         """Get token usage and cost summary for a period."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         if period == "today":
             where_clause = "created_at >= CURRENT_DATE"
         elif period == "week":
@@ -231,36 +245,32 @@ class WorkOrderDB:
             FROM agent_metrics
             WHERE {where_clause}
         """
-        async with self._conn.cursor() as cur:
-            await cur.execute(query)
-            row = await cur.fetchone()
-            return {
-                "prompt_tokens": int(row["prompt_tokens"] or 0),
-                "completion_tokens": int(row["completion_tokens"] or 0),
-                "total_tokens": int(row["total_tokens"] or 0),
-                "total_cost": float(row["total_cost"] or 0.0),
-            }
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                row = await cur.fetchone()
+                return {
+                    "prompt_tokens": int(row["prompt_tokens"] or 0),
+                    "completion_tokens": int(row["completion_tokens"] or 0),
+                    "total_tokens": int(row["total_tokens"] or 0),
+                    "total_cost": float(row["total_cost"] or 0.0),
+                }
 
     async def get_recent_audit_logs(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent audit log entries."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         query = """
             SELECT id, work_order_id, actor, action, status, created_at
             FROM audit_logs
             ORDER BY created_at DESC
             LIMIT %s
         """
-        async with self._conn.cursor() as cur:
-            await cur.execute(query, (limit,))
-            return await cur.fetchall()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, (limit,))
+                return await cur.fetchall()
 
     async def get_system_status(self) -> dict[str, Any]:
         """Get system health metrics."""
-        if not self._conn:
-            raise RuntimeError("Database not connected.")
-
         query_wo = """
             SELECT
                 COUNT(*) FILTER (WHERE status = 'queued') as queued,
@@ -270,9 +280,10 @@ class WorkOrderDB:
             FROM work_orders
             WHERE created_at >= CURRENT_DATE - INTERVAL '1 day'
         """
-        async with self._conn.cursor() as cur:
-            await cur.execute(query_wo)
-            wo_stats = await cur.fetchone()
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query_wo)
+                wo_stats = await cur.fetchone()
 
         return {
             "work_orders": {
@@ -281,5 +292,5 @@ class WorkOrderDB:
                 "completed": int(wo_stats["completed"] or 0),
                 "failed": int(wo_stats["failed"] or 0),
             },
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
         }

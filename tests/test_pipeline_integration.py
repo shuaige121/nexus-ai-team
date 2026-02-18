@@ -112,8 +112,8 @@ async def test_dispatcher_process_work_order(mock_router):
         # Create a test work order (clean up from previous runs)
         wo_id = "WO-TEST-DISPATCHER-001"
         test_session_id = "test-session-dispatcher"
-        if db._conn:
-            async with db._conn.cursor() as cur:
+        async with db.get_connection() as conn:
+            async with conn.cursor() as cur:
                 await cur.execute("DELETE FROM audit_logs WHERE work_order_id = %s", (wo_id,))
                 await cur.execute("DELETE FROM agent_metrics WHERE work_order_id = %s", (wo_id,))
                 await cur.execute("DELETE FROM work_orders WHERE id = %s", (wo_id,))
@@ -123,7 +123,7 @@ async def test_dispatcher_process_work_order(mock_router):
                     "VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
                     (test_session_id, "test-user", "api", "active"),
                 )
-                await db._conn.commit()
+                await conn.commit()
         await db.create_work_order(
             wo_id=wo_id,
             intent="test_intent",

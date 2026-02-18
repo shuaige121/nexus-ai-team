@@ -223,3 +223,17 @@ start:
 
 start-no-docker:
 	@bash scripts/nexus-start.sh --skip-docker
+
+# -- Database Migrations -------------------------------------------------------
+
+.PHONY: migrate migration
+
+migrate:
+	@echo "Running database migrations..."
+	.venv/bin/alembic upgrade head
+	@echo "Migrations applied."
+
+migration:
+	@echo "Creating new migration..."
+	@read -p "Migration message: " msg; 	.venv/bin/alembic revision --autogenerate -m "34681msg"
+	@echo "Migration created in alembic/versions/. Review before running make migrate."

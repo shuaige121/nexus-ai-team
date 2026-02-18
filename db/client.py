@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""Database client for NEXUS with PostgreSQL and SQLite fallback support."""
+"""Database client for NEXUS with PostgreSQL and SQLite fallback support.
+
+.. deprecated::
+    This is the **legacy synchronous** database client, used only by CLI scripts
+    and offline tooling (e.g. db/ CLI helpers).  It uses psycopg2 (sync).
+
+    For the **async** database client used by the FastAPI gateway and the
+    execution pipeline, see :mod:`pipeline.work_order.WorkOrderDB` which uses
+    ``psycopg3`` with ``psycopg_pool.AsyncConnectionPool``.
+
+    Do **not** add new features here.  New database access should go through
+    ``WorkOrderDB`` (async) whenever possible.  This module will be retired
+    once all CLI scripts are migrated to async.
+"""
 
 from __future__ import annotations
 
