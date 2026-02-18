@@ -235,5 +235,5 @@ migrate:
 
 migration:
 	@echo "Creating new migration..."
-	@read -p "Migration message: " msg; 	.venv/bin/alembic revision --autogenerate -m "34681msg"
+	@read -p "Migration message: " msg; 	.venv/bin/alembic revision --autogenerate -m "$$msg"
 	@echo "Migration created in alembic/versions/. Review before running make migrate."

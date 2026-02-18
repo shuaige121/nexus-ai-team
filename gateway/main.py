@@ -206,10 +206,18 @@ app = FastAPI(
 
 # 1. CORS — outermost
 origins = [o.strip() for o in settings.cors_origins.split(",")]
+_allow_credentials = True
+if "*" in origins and _allow_credentials:
+    logger.critical(
+        "CORS misconfiguration: allow_origins contains wildcard with allow_credentials=True. "
+        "Browsers will reject credentialed requests. Forcing allow_credentials=False."
+    )
+    _allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

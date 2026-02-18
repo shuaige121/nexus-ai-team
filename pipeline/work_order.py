@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, AsyncIterator
 
 import psycopg
@@ -292,5 +292,5 @@ class WorkOrderDB:
                 "completed": int(wo_stats["completed"] or 0),
                 "failed": int(wo_stats["failed"] or 0),
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
