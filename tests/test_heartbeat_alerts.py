@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""UAT Test 2: 测试告警触发和自动恢复逻辑"""
+"""UAT Test 2: test alert triggering and automatic recovery logic"""
 
 import asyncio
 import sys
@@ -14,125 +14,109 @@ from heartbeat.recovery import RecoveryManager
 
 
 async def test_alert_and_recovery():
-    """测试告警触发和自动恢复"""
+    """Test alert triggering and auto-recovery."""
     print("=" * 60)
-    print("UAT Test 2: 告警触发和自动恢复测试")
+    print("UAT Test 2: Alert and Recovery Test")
     print("=" * 60)
 
-    # 创建 alert manager (不启用 Telegram)
     alert_manager = AlertManager(
         telegram_bot_token="",
         telegram_chat_id="",
         enable_telegram=False,
     )
 
-    # 创建 recovery manager (禁用实际重启)
     recovery_manager = RecoveryManager(
         alert_manager=alert_manager,
         project_root="/home/leonard/Desktop/nexus-ai-team",
         enable_auto_recovery=True,
-        enable_restart=False,  # 不实际重启服务
+        enable_restart=False,
     )
 
-    # 测试场景 1: Gateway 离线
+    # Scenario 1: Gateway offline
     print("\n" + "=" * 60)
-    print("场景 1: 模拟 Gateway 离线")
+    print("Scenario 1: Gateway offline")
     print("=" * 60)
 
-    # 使用错误端口模拟 gateway 离线
     monitor_offline = HealthMonitor(
-        gateway_url="http://localhost:9999",  # 错误端口
+        gateway_url="http://localhost:9999",
         redis_url="redis://localhost:6379/0",
         postgres_url="",
     )
 
     health_offline = await monitor_offline.check_health()
-    print(f"\nGateway 状态: {health_offline.gateway.status}")
-    print(f"Gateway 消息: {health_offline.gateway.message}")
-    print(f"有严重问题: {'是' if health_offline.has_critical_issues() else '否'}")
+    print(f"\nGateway status: {health_offline.gateway.status}")
+    print(f"Gateway message: {health_offline.gateway.message}")
+    print(f"Has critical issues: {'yes' if health_offline.has_critical_issues() else 'no'}")
 
-    # 触发告警处理
-    print("\n触发告警处理...")
+    print("\nProcessing alerts...")
     await alert_manager.process_health(health_offline)
 
-    # 触发恢复处理
-    print("触发恢复处理...")
+    print("Processing recovery...")
     await recovery_manager.process_health(health_offline)
 
-    # 测试场景 2: Redis 离线
+    # Scenario 2: Redis offline
     print("\n" + "=" * 60)
-    print("场景 2: 模拟 Redis 离线")
+    print("Scenario 2: Redis offline")
     print("=" * 60)
 
     monitor_redis_offline = HealthMonitor(
         gateway_url="http://localhost:8000",
-        redis_url="redis://localhost:9999/0",  # 错误端口
+        redis_url="redis://localhost:9999/0",
         postgres_url="",
     )
 
     health_redis_offline = await monitor_redis_offline.check_health()
-    print(f"\nRedis 状态: {health_redis_offline.redis.status}")
-    print(f"Redis 消息: {health_redis_offline.redis.message}")
+    print(f"\nRedis status: {health_redis_offline.redis.status}")
+    print(f"Redis message: {health_redis_offline.redis.message}")
 
     await alert_manager.process_health(health_redis_offline)
     await recovery_manager.process_health(health_redis_offline)
 
-    # 测试场景 3: 检查恢复次数限制 (使用手动记录)
+    # Scenario 3: Recovery attempt limiting
     print("\n" + "=" * 60)
-    print("场景 3: 测试恢复次数限制 (防止无限重启)")
+    print("Scenario 3: Recovery attempt limiting (prevent infinite restart)")
     print("=" * 60)
 
-    print(f"\n当前 gateway 恢复次数: {recovery_manager._recovery_attempts.get('gateway', 0)}")
-    print(f"最大恢复次数: {recovery_manager._max_recovery_attempts}")
+    print(f"\nCurrent gateway recovery attempts: {recovery_manager._recovery_attempts.get('gateway', 0)}")
+    print(f"Max recovery attempts: {recovery_manager._max_recovery_attempts}")
 
-    # 手动模拟恢复尝试
     test_component = "test_service"
     for i in range(5):
-        if recovery_manager._should_attempt_recovery(test_component):
-            recovery_manager._record_recovery_attempt(test_component)
+        if await recovery_manager._should_attempt_recovery(test_component):
+            await recovery_manager._record_recovery_attempt(test_component)
             attempts = recovery_manager._recovery_attempts.get(test_component, 0)
-            print(f"第 {i+1} 次恢复尝试, 记录次数: {attempts}")
+            print(f"Attempt {i+1}: recorded, count={attempts}")
         else:
-            print(f"第 {i+1} 次尝试: ✅ 达到最大恢复次数({recovery_manager._max_recovery_attempts}),已停止尝试 (防止无限循环)")
+            print(f"Attempt {i+1}: BLOCKED (max {recovery_manager._max_recovery_attempts} reached)")
             break
 
-    # 验证结果
+    # Verify results
     print("\n" + "=" * 60)
-    print("验证结果:")
+    print("Verification:")
     print("=" * 60)
 
     issues = []
 
-    # 1. Gateway 离线应该检测到 critical
     if health_offline.gateway.status != "critical":
-        issues.append(f"Gateway 离线检测失败: {health_offline.gateway.status}")
+        issues.append(f"Gateway offline detection failed: {health_offline.gateway.status}")
 
-    # 2. Redis 离线应该检测到 critical
     if health_redis_offline.redis.status != "critical":
-        issues.append(f"Redis 离线检测失败: {health_redis_offline.redis.status}")
+        issues.append(f"Redis offline detection failed: {health_redis_offline.redis.status}")
 
-    # 3. 恢复次数应该被限制
     test_attempts = recovery_manager._recovery_attempts.get('test_service', 0)
     if test_attempts != recovery_manager._max_recovery_attempts:
-        issues.append(f"恢复次数限制失败: 预期{recovery_manager._max_recovery_attempts}, 实际{test_attempts}")
+        issues.append(f"Recovery limit failed: expected {recovery_manager._max_recovery_attempts}, got {test_attempts}")
 
-    # 4. 检查 AlertManager 是否正确识别严重问题
     if not health_offline.has_critical_issues():
-        issues.append("未正确识别严重问题")
+        issues.append("Failed to identify critical issues")
 
     if issues:
-        print("❌ 发现问题:")
+        print("FAILED:")
         for issue in issues:
             print(f"  - {issue}")
         return False
     else:
-        print("✅ 所有验证通过")
-        print("\n关键特性:")
-        print("  ✅ 正确检测 Gateway 离线")
-        print("  ✅ 正确检测 Redis 离线")
-        print("  ✅ 告警处理正常工作")
-        print("  ✅ 恢复次数正确限制 (防止无限重启)")
-        print("  ✅ 不会误杀进程 (enable_restart=False)")
+        print("ALL CHECKS PASSED")
         return True
 
 

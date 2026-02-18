@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -10,10 +10,14 @@ from pydantic import BaseModel, Field
 # --- Health ---
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.1.0"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_utc_now)
 
 
 # --- Chat / Work Orders ---
@@ -29,7 +33,7 @@ class Difficulty(StrEnum):
 class ChatMessage(BaseModel):
     role: str  # "user" | "assistant" | "system"
     content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_utc_now)
 
 
 class WorkOrder(BaseModel):
@@ -40,7 +44,7 @@ class WorkOrder(BaseModel):
     compressed_context: str = ""
     relevant_files: list[str] = Field(default_factory=list)
     qa_requirements: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_now)
 
 
 # --- WebSocket frames ---

@@ -1,10 +1,10 @@
 """Auto-recovery for NEXUS health issues.
 
 Attempts to automatically recover from common failures:
-- Gateway unresponsive → restart service
-- Agent stuck → kill and restart
-- Disk full → cleanup logs
-- Redis/PostgreSQL down → retry connection
+- Gateway unresponsive -> restart service
+- Agent stuck -> kill and restart
+- Disk full -> cleanup logs
+- Redis/PostgreSQL down -> retry connection
 """
 
 from __future__ import annotations
@@ -14,13 +14,16 @@ import logging
 import os
 import shutil
 import subprocess
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from heartbeat.alerts import AlertManager, AlertSeverity
 from heartbeat.monitor import HealthStatus, SystemHealth
 
 logger = logging.getLogger("heartbeat.recovery")
+
+RECOVERY_ATTEMPT_TTL: int = 3600  # 1 hour in seconds
+RECOVERY_KEY_PREFIX: str = "recovery:attempts:"
 
 
 class RecoveryManager:
@@ -32,22 +35,49 @@ class RecoveryManager:
         project_root: str = "/home/leonard/Desktop/nexus-ai-team",
         enable_auto_recovery: bool = True,
         enable_restart: bool = False,  # Requires systemd service
+        redis_client: object | None = None,
     ):
         self.alert_manager = alert_manager
         self.project_root = Path(project_root)
         self.enable_auto_recovery = enable_auto_recovery
         self.enable_restart = enable_restart
+        self._redis = redis_client
 
-        # Track recovery attempts to avoid infinite loops
+        # In-memory fallback when Redis is unavailable
         self._recovery_attempts: dict[str, int] = {}
         self._max_recovery_attempts = 3
+
+    async def _get_attempt_count(self, component: str) -> int:
+        """Get current recovery attempt count, preferring Redis."""
+        if self._redis is not None:
+            try:
+                key = f"{RECOVERY_KEY_PREFIX}{component}"
+                val = await self._redis.get(key)
+                return int(val) if val else 0
+            except Exception:
+                logger.debug("Redis unavailable for get, using in-memory fallback")
+        return self._recovery_attempts.get(component, 0)
+
+    async def _increment_attempt_count(self, component: str) -> int:
+        """Increment and return the new attempt count, preferring Redis."""
+        if self._redis is not None:
+            try:
+                key = f"{RECOVERY_KEY_PREFIX}{component}"
+                new_val = await self._redis.incr(key)
+                await self._redis.expire(key, RECOVERY_ATTEMPT_TTL)
+                self._recovery_attempts[component] = int(new_val)
+                return int(new_val)
+            except Exception:
+                logger.debug("Redis unavailable for incr, using in-memory fallback")
+
+        self._recovery_attempts[component] = self._recovery_attempts.get(component, 0) + 1
+        return self._recovery_attempts[component]
 
     async def process_health(self, health: SystemHealth):
         """Process health report and attempt recovery if needed."""
         if not self.enable_auto_recovery:
             return
 
-        # Handle critical issues
         if health.gateway.is_critical():
             await self._recover_gateway(health.gateway)
 
@@ -70,14 +100,13 @@ class RecoveryManager:
         """Attempt to recover Gateway service."""
         component = "gateway"
 
-        if not self._should_attempt_recovery(component):
+        if not await self._should_attempt_recovery(component):
             logger.warning("Max recovery attempts reached for %s", component)
             return
 
         logger.info("Attempting to recover Gateway...")
 
         if self.enable_restart:
-            # Try to restart via systemd
             try:
                 subprocess.run(
                     ["systemctl", "restart", "nexus-gateway"],
@@ -91,12 +120,11 @@ class RecoveryManager:
                     message="Gateway was unresponsive and has been restarted",
                     details={"component": component, "method": "systemd"},
                 )
-                self._record_recovery_attempt(component)
+                await self._record_recovery_attempt(component)
                 return
             except Exception as e:
                 logger.error("Failed to restart Gateway via systemd: %s", e)
 
-        # Fallback: notify user for manual intervention
         await self.alert_manager.send_custom_alert(
             severity=AlertSeverity.CRITICAL,
             message="Gateway is down and automatic restart is disabled. Manual intervention required.",
@@ -107,47 +135,43 @@ class RecoveryManager:
         """Attempt to recover Redis connection."""
         component = "redis"
 
-        if not self._should_attempt_recovery(component):
+        if not await self._should_attempt_recovery(component):
             logger.warning("Max recovery attempts reached for %s", component)
             return
 
         logger.info("Attempting to recover Redis connection...")
 
-        # Redis issues are usually transient or require external action
-        # Just notify and let Docker/systemd handle restart
         await self.alert_manager.send_custom_alert(
             severity=AlertSeverity.CRITICAL,
             message="Redis is unreachable. Check if Redis service is running.",
             details={"component": component, "error": status.message},
         )
 
-        self._record_recovery_attempt(component)
+        await self._record_recovery_attempt(component)
 
     async def _recover_postgres(self, status: HealthStatus):
         """Attempt to recover PostgreSQL connection."""
         component = "postgres"
 
-        if not self._should_attempt_recovery(component):
+        if not await self._should_attempt_recovery(component):
             logger.warning("Max recovery attempts reached for %s", component)
             return
 
         logger.info("Attempting to recover PostgreSQL connection...")
 
-        # PostgreSQL issues are usually external
-        # Notify for manual intervention
         await self.alert_manager.send_custom_alert(
             severity=AlertSeverity.CRITICAL,
             message="PostgreSQL is unreachable. Check if database service is running.",
             details={"component": component, "error": status.message},
         )
 
-        self._record_recovery_attempt(component)
+        await self._record_recovery_attempt(component)
 
     async def _recover_agents(self, status: HealthStatus):
         """Attempt to recover stuck agents."""
         component = "agents"
 
-        if not self._should_attempt_recovery(component):
+        if not await self._should_attempt_recovery(component):
             logger.warning("Max recovery attempts reached for %s", component)
             return
 
@@ -155,7 +179,6 @@ class RecoveryManager:
 
         stale_count = status.details.get("stale_work_orders", 0)
 
-        # Notify about stuck agents
         await self.alert_manager.send_custom_alert(
             severity=AlertSeverity.WARNING,
             message=f"Detected {stale_count} stale work order(s). Agents may be stuck.",
@@ -166,16 +189,13 @@ class RecoveryManager:
             },
         )
 
-        self._record_recovery_attempt(component)
-
-        # TODO: Implement agent process monitoring and restart
-        # This would require tracking agent PIDs or using process managers
+        await self._record_recovery_attempt(component)
 
     async def _recover_disk(self, status: HealthStatus):
         """Attempt to free disk space."""
         component = "disk"
 
-        if not self._should_attempt_recovery(component):
+        if not await self._should_attempt_recovery(component):
             logger.warning("Max recovery attempts reached for %s", component)
             return
 
@@ -185,17 +205,14 @@ class RecoveryManager:
         freed_mb = 0
 
         try:
-            # Clean old logs
             logs_dir = self.project_root / "logs"
             if logs_dir.exists():
                 freed_mb += await self._cleanup_old_logs(logs_dir, days=7)
 
-            # Clean old reports
             reports_dir = self.project_root / "reports"
             if reports_dir.exists():
                 freed_mb += await self._cleanup_old_files(reports_dir, days=30)
 
-            # Clean __pycache__ directories
             freed_mb += await self._cleanup_pycache(self.project_root)
 
             logger.info("Freed approximately %d MB of disk space", freed_mb)
@@ -210,7 +227,7 @@ class RecoveryManager:
                 },
             )
 
-            self._record_recovery_attempt(component)
+            await self._record_recovery_attempt(component)
 
         except Exception:
             logger.exception("Failed to cleanup disk")
@@ -224,7 +241,7 @@ class RecoveryManager:
         """Handle token budget exhaustion."""
         component = "budget"
 
-        if not self._should_attempt_recovery(component):
+        if not await self._should_attempt_recovery(component):
             logger.warning("Max recovery attempts reached for %s", component)
             return
 
@@ -243,17 +260,17 @@ class RecoveryManager:
             },
         )
 
-        self._record_recovery_attempt(component)
+        await self._record_recovery_attempt(component)
 
     async def _cleanup_old_logs(self, logs_dir: Path, days: int) -> int:
         """Delete log files older than specified days. Returns MB freed."""
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         freed_bytes = 0
 
         for log_file in logs_dir.rglob("*.log"):
             if log_file.is_file():
                 mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
-                if mtime < cutoff:
+                if mtime < cutoff.replace(tzinfo=None):
                     size = log_file.stat().st_size
                     log_file.unlink()
                     freed_bytes += size
@@ -263,13 +280,13 @@ class RecoveryManager:
 
     async def _cleanup_old_files(self, directory: Path, days: int) -> int:
         """Delete files older than specified days. Returns MB freed."""
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         freed_bytes = 0
 
         for file_path in directory.rglob("*"):
             if file_path.is_file():
                 mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
-                if mtime < cutoff:
+                if mtime < cutoff.replace(tzinfo=None):
                     size = file_path.stat().st_size
                     file_path.unlink()
                     freed_bytes += size
@@ -290,18 +307,30 @@ class RecoveryManager:
 
         return freed_bytes // (1024 * 1024)
 
-    def _should_attempt_recovery(self, component: str) -> bool:
+    async def _should_attempt_recovery(self, component: str) -> bool:
         """Check if we should attempt recovery for this component."""
-        attempts = self._recovery_attempts.get(component, 0)
+        attempts = await self._get_attempt_count(component)
         return attempts < self._max_recovery_attempts
 
-    def _record_recovery_attempt(self, component: str):
+    async def _record_recovery_attempt(self, component: str) -> None:
         """Record a recovery attempt for rate limiting."""
-        self._recovery_attempts[component] = self._recovery_attempts.get(component, 0) + 1
+        await self._increment_attempt_count(component)
 
-    def reset_recovery_attempts(self, component: str | None = None):
+    async def reset_recovery_attempts(self, component: str | None = None) -> None:
         """Reset recovery attempt counter (call when issue is resolved)."""
         if component:
             self._recovery_attempts[component] = 0
+            if self._redis is not None:
+                try:
+                    await self._redis.delete(f"{RECOVERY_KEY_PREFIX}{component}")
+                except Exception:
+                    pass
         else:
             self._recovery_attempts.clear()
+            if self._redis is not None:
+                try:
+                    keys = await self._redis.keys(f"{RECOVERY_KEY_PREFIX}*")
+                    if keys:
+                        await self._redis.delete(*keys)
+                except Exception:
+                    pass

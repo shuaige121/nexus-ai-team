@@ -51,7 +51,7 @@ async def run_heartbeat_loop(
 
                 # Reset recovery attempts if system is healthy
                 if health.is_healthy():
-                    recovery_manager.reset_recovery_attempts()
+                    await recovery_manager.reset_recovery_attempts()
 
     except KeyboardInterrupt:
         logger.info("Received interrupt, shutting down...")

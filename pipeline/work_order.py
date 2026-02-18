@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
@@ -281,5 +281,5 @@ class WorkOrderDB:
                 "completed": int(wo_stats["completed"] or 0),
                 "failed": int(wo_stats["failed"] or 0),
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }

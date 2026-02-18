@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-from datetime import datetime
+import time
+from collections import deque
+from datetime import UTC, datetime
 
 from fastapi import WebSocket
 
@@ -13,6 +16,15 @@ from gateway.schemas import WSEvent, WSRequest, WSResponse
 
 logger = logging.getLogger("gateway.ws")
 
+# Rate limiting constants
+MAX_MESSAGES_PER_MINUTE: int = 30
+RATE_WINDOW_SECONDS: float = 60.0
+MAX_PAYLOAD_BYTES: int = 64 * 1024  # 64 KB
+
+# Ping/pong constants
+PING_INTERVAL_SECONDS: float = 30.0
+PONG_TIMEOUT_SECONDS: float = 10.0
+
 
 class ConnectionManager:
     """Track active WebSocket connections and broadcast events."""
@@ -20,6 +32,19 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._connections: dict[str, WebSocket] = {}
         self._seq: int = 0
+        self._message_timestamps: dict[str, deque[float]] = {}
+        self._pong_waiters: dict[str, asyncio.Event] = {}
+        self._keepalive_task: asyncio.Task | None = None
+
+    def start_keepalive(self) -> None:
+        """Start the background ping/pong keepalive task."""
+        if self._keepalive_task is None or self._keepalive_task.done():
+            self._keepalive_task = asyncio.create_task(self._keepalive_loop())
+
+    def stop_keepalive(self) -> None:
+        """Cancel the keepalive task."""
+        if self._keepalive_task and not self._keepalive_task.done():
+            self._keepalive_task.cancel()
 
     @property
     def active_count(self) -> int:
@@ -33,24 +58,67 @@ class ConnectionManager:
 
         await websocket.accept()
         self._connections[conn_id] = websocket
+        self._message_timestamps[conn_id] = deque()
         logger.info("WS connected: %s (total: %d)", conn_id, self.active_count)
 
         # Send welcome event
         await self._send_event(
             websocket,
             "connected",
-            {"conn_id": conn_id, "server_time": datetime.utcnow().isoformat()},
+            {"conn_id": conn_id, "server_time": datetime.now(UTC).isoformat()},
         )
+
+        # Auto-start keepalive when first connection arrives
+        self.start_keepalive()
         return True
 
     def disconnect(self, conn_id: str) -> None:
         self._connections.pop(conn_id, None)
+        self._message_timestamps.pop(conn_id, None)
+        self._pong_waiters.pop(conn_id, None)
         logger.info("WS disconnected: %s (total: %d)", conn_id, self.active_count)
+
+    def _check_rate_limit(self, conn_id: str) -> bool:
+        """Return True if the connection is within rate limits."""
+        now = time.monotonic()
+        timestamps = self._message_timestamps.get(conn_id)
+        if timestamps is None:
+            return False
+
+        # Evict timestamps outside the sliding window
+        while timestamps and timestamps[0] < now - RATE_WINDOW_SECONDS:
+            timestamps.popleft()
+
+        if len(timestamps) >= MAX_MESSAGES_PER_MINUTE:
+            return False
+
+        timestamps.append(now)
+        return True
 
     async def handle_message(self, conn_id: str, raw: str) -> None:
         """Parse incoming frame and dispatch."""
         ws = self._connections.get(conn_id)
         if not ws:
+            return
+
+        # Payload size check
+        if len(raw.encode("utf-8")) > MAX_PAYLOAD_BYTES:
+            await self._send_response(
+                ws, "?", ok=False,
+                error=f"Payload too large (max {MAX_PAYLOAD_BYTES} bytes)",
+            )
+            self.disconnect(conn_id)
+            await ws.close(code=1009, reason="Payload too large")
+            return
+
+        # Rate limit check
+        if not self._check_rate_limit(conn_id):
+            await self._send_response(
+                ws, "?", ok=False,
+                error=f"Rate limit exceeded ({MAX_MESSAGES_PER_MINUTE} msg/min)",
+            )
+            self.disconnect(conn_id)
+            await ws.close(code=1008, reason="Rate limit exceeded")
             return
 
         try:
@@ -60,6 +128,13 @@ class ConnectionManager:
             return
 
         frame_type = data.get("type")
+
+        if frame_type == "pong":
+            # Handle pong response from client
+            event = self._pong_waiters.get(conn_id)
+            if event:
+                event.set()
+            return
 
         if frame_type == "req":
             req = WSRequest(**data)
@@ -83,6 +158,60 @@ class ConnectionManager:
     async def broadcast_health_status(self, health_report: dict) -> None:
         """Broadcast health status change to all connected clients."""
         await self.broadcast("health.update", health_report)
+
+    # --- keepalive ---
+
+    async def _keepalive_loop(self) -> None:
+        """Periodically ping all connections and remove dead ones."""
+        try:
+            while True:
+                await asyncio.sleep(PING_INTERVAL_SECONDS)
+                if not self._connections:
+                    continue
+                await self._ping_all()
+        except asyncio.CancelledError:
+            return
+
+    async def _ping_all(self) -> None:
+        """Send ping to every connection and wait for pong."""
+        dead: list[str] = []
+        tasks: list[tuple[str, asyncio.Task]] = []
+
+        for conn_id, ws in list(self._connections.items()):
+            event = asyncio.Event()
+            self._pong_waiters[conn_id] = event
+            try:
+                ping_frame = json.dumps({"type": "ping", "ts": time.time()})
+                await ws.send_text(ping_frame)
+                task = asyncio.create_task(self._wait_pong(conn_id, event))
+                tasks.append((conn_id, task))
+            except Exception:
+                dead.append(conn_id)
+
+        for conn_id, task in tasks:
+            responded = await task
+            if not responded:
+                dead.append(conn_id)
+
+        for cid in dead:
+            logger.info("Removing dead connection: %s (no pong)", cid)
+            ws = self._connections.get(cid)
+            self.disconnect(cid)
+            if ws:
+                try:
+                    await ws.close(code=1001, reason="Ping timeout")
+                except Exception:
+                    pass
+
+    async def _wait_pong(self, conn_id: str, event: asyncio.Event) -> bool:
+        """Wait for a pong response within timeout. Returns True if received."""
+        try:
+            await asyncio.wait_for(event.wait(), timeout=PONG_TIMEOUT_SECONDS)
+            return True
+        except asyncio.TimeoutError:
+            return False
+        finally:
+            self._pong_waiters.pop(conn_id, None)
 
     # --- internal helpers ---
 
