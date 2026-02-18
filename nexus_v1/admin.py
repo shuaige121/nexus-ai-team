@@ -12,6 +12,25 @@ from .config import AgentRole, Difficulty, owner_for_difficulty
 from .model_router import ModelRouter
 
 ALLOWED_DIFFICULTY: set[str] = {"trivial", "normal", "complex", "unclear"}
+
+# Equipment keyword detection map
+EQUIPMENT_KEYWORDS: dict[str, list[str]] = {
+    "health_check": [
+        "health", "健康", "cpu", "ram", "memory", "disk", "gpu",
+        "usage", "系统状态", "健康检查", "健康状态", "system health",
+    ],
+    "log_rotate": [
+        "log rotate", "log rotation", "日志轮转", "日志清理", "rotate log",
+        "clean log", "log clean", "日志",
+    ],
+    "backup": [
+        "backup", "备份", "back up",
+    ],
+    "cost_report": [
+        "cost report", "token cost", "成本报告", "费用报告", "token usage",
+        "cost summary", "成本",
+    ],
+}
 _ORDER_COUNTER = itertools.count(1)
 
 
@@ -23,6 +42,7 @@ class RouteResult:
     relevant_files: list[str]
     qa_requirements: str
     clarification_question: str | None = None
+    equipment_name: str | None = None
 
 
 @dataclass
@@ -36,6 +56,7 @@ class WorkOrder:
     qa_requirements: str
     deadline: str | None = None
     clarification_question: str | None = None
+    equipment_name: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +69,7 @@ class WorkOrder:
             "qa_requirements": self.qa_requirements,
             "deadline": self.deadline,
             "clarification_question": self.clarification_question,
+            "equipment_name": self.equipment_name,
         }
 
 
@@ -81,6 +103,7 @@ class AdminAgent:
             qa_requirements=route.qa_requirements,
             deadline=deadline,
             clarification_question=route.clarification_question,
+            equipment_name=route.equipment_name,
         )
 
     def compress_message(
@@ -181,6 +204,8 @@ class AdminAgent:
             clarification_question = self._default_clarification_question()
 
         owner = owner_for_difficulty(difficulty)
+        equipment_name = self._detect_equipment(user_message)
+
         return RouteResult(
             intent=intent,
             difficulty=difficulty,
@@ -188,6 +213,7 @@ class AdminAgent:
             relevant_files=relevant_files,
             qa_requirements=qa_requirements,
             clarification_question=clarification_question,
+            equipment_name=equipment_name,
         )
 
     def _classify_with_heuristic(
@@ -202,6 +228,7 @@ class AdminAgent:
         clarification_question = (
             self._default_clarification_question() if difficulty == "unclear" else None
         )
+        equipment_name = self._detect_equipment(user_message)
 
         return RouteResult(
             intent=intent,
@@ -210,7 +237,17 @@ class AdminAgent:
             relevant_files=relevant_files,
             qa_requirements=qa_requirements,
             clarification_question=clarification_question,
+            equipment_name=equipment_name,
         )
+
+    @staticmethod
+    def _detect_equipment(text: str) -> str | None:
+        """Detect if the request matches a known equipment name."""
+        lowered = text.lower()
+        for equipment_name, keywords in EQUIPMENT_KEYWORDS.items():
+            if any(kw in lowered for kw in keywords):
+                return equipment_name
+        return None
 
     @staticmethod
     def _build_context_block(

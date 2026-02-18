@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ class WorkOrderDB:
         async with self._conn.cursor() as cur:
             await cur.execute(
                 query,
-                (work_order_id, session_id, actor, action, status, details or {}),
+                (work_order_id, session_id, actor, action, status, Jsonb(details or {})),
             )
             await self._conn.commit()
 
@@ -198,7 +199,7 @@ class WorkOrderDB:
                     prompt_tokens,
                     completion_tokens,
                     cost_usd,
-                    metadata or {},
+                    Jsonb(metadata or {}),
                 ),
             )
             await self._conn.commit()

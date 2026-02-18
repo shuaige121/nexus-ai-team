@@ -10,8 +10,8 @@ import pytest
 
 # Mock dependencies that require external services
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
-os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ.setdefault("DATABASE_URL", "postgresql://nexus:nexus@localhost:5432/nexus")
+os.environ.setdefault("REDIS_URL", "redis://:nexus_redis_dev_password_2024@localhost:6379/0")
 
 
 @pytest.fixture
@@ -54,7 +54,9 @@ async def test_queue_enqueue_consume():
 
     from pipeline.queue import QueueManager
 
-    queue = QueueManager("redis://localhost:6379/15", stream_name="test:work_orders")
+    redis_password = os.getenv("REDIS_PASSWORD", "nexus_redis_dev_password_2024")
+    redis_url = f"redis://:{redis_password}@localhost:6379/15" if redis_password else "redis://localhost:6379/15"
+    queue = QueueManager(redis_url, stream_name="test:work_orders")
 
     try:
         await queue.connect()
@@ -97,16 +99,31 @@ async def test_dispatcher_process_work_order(mock_router):
     from pipeline import Dispatcher, QueueManager, WorkOrderDB
 
     # Use test databases - read from environment or skip test if not configured
-    db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
+    db_url = os.getenv("DATABASE_URL", "postgresql://nexus:nexus@localhost:5432/nexus")
     db = WorkOrderDB(db_url)
-    queue = QueueManager("redis://localhost:6379/15", stream_name="test:dispatcher")
+    redis_password = os.getenv("REDIS_PASSWORD", "nexus_redis_dev_password_2024")
+    redis_url = f"redis://:{redis_password}@localhost:6379/15" if redis_password else "redis://localhost:6379/15"
+    queue = QueueManager(redis_url, stream_name="test:dispatcher")
 
     try:
         await db.connect()
         await queue.connect()
 
-        # Create a test work order
+        # Create a test work order (clean up from previous runs)
         wo_id = "WO-TEST-DISPATCHER-001"
+        test_session_id = "test-session-dispatcher"
+        if db._conn:
+            async with db._conn.cursor() as cur:
+                await cur.execute("DELETE FROM audit_logs WHERE work_order_id = %s", (wo_id,))
+                await cur.execute("DELETE FROM agent_metrics WHERE work_order_id = %s", (wo_id,))
+                await cur.execute("DELETE FROM work_orders WHERE id = %s", (wo_id,))
+                # Ensure test session exists for FK constraints
+                await cur.execute(
+                    "INSERT INTO sessions (id, user_id, channel, status) "
+                    "VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    (test_session_id, "test-user", "api", "active"),
+                )
+                await db._conn.commit()
         await db.create_work_order(
             wo_id=wo_id,
             intent="test_intent",
@@ -123,7 +140,7 @@ async def test_dispatcher_process_work_order(mock_router):
             {
                 "user_message": "Test dispatcher message",
                 "conversation": [],
-                "session_id": "test-session",
+                "session_id": test_session_id,
             },
         )
 
