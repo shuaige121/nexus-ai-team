@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS AI-Team — Chain of Command</title>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-root:    #0a0a1a;
+    --bg-panel:   #0f0f24;
+    --bg-card:    #141430;
+    --bg-hover:   #1a1a3a;
+    --bg-input:   #0c0c22;
+    --border:     #1e1e40;
+    --border-dim: #161630;
+    --accent:     #4f6ef7;
+    --accent-dim: #2a3a8a;
+    --accent-glow:#4f6ef740;
+    --green:      #22c55e;
+    --yellow:     #eab308;
+    --red:        #ef4444;
+    --orange:     #f97316;
+    --purple:     #a855f7;
+    --cyan:       #06b6d4;
+    --text:       #e2e2f0;
+    --text-dim:   #8888aa;
+    --text-muted: #555580;
+    --font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg-root);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ===== LAYOUT ===== */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-header .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px; color: #fff;
+  }
+  .app-header .logo-text {
+    font-size: 16px; font-weight: 700; letter-spacing: 0.05em;
+    color: var(--text);
+  }
+  .app-header .logo-sub {
+    font-size: 11px; color: var(--text-dim); font-family: var(--font);
+  }
+  .header-right {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    background: #0f2a1a; border: 1px solid #22c55e40;
+    font-size: 12px; color: var(--green); font-family: var(--font);
+  }
+  .status-pill .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .header-time {
+    font-family: var(--font); font-size: 12px; color: var(--text-dim);
+  }
+
+  .app-body {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    height: calc(100vh - 57px);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    grid-row: 1 / 3;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sidebar-tab {
+    flex: 1; padding: 10px 8px;
+    background: none; border: none; cursor: pointer;
+    font-size: 11px; font-family: var(--font);
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .sidebar-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .sidebar-tab:hover:not(.active) { color: var(--text-dim); background: var(--bg-hover); }
+
+  .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+  .sidebar-content::-webkit-scrollbar { width: 4px; }
+  .sidebar-content::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Main area */
+  .main-top {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .main-content {
+    overflow-y: auto; padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+    align-content: start;
+  }
+  .main-content::-webkit-scrollbar { width: 6px; }
+  .main-content::-webkit-scrollbar-track { background: transparent; }
+  .main-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ===== PANELS ===== */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .panel.span-2 { grid-column: span 2; }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-dim);
+    background: var(--bg-card);
+  }
+  .panel-title {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-dim); font-family: var(--font);
+  }
+  .panel-body { padding: 16px; }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 5px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; font-family: var(--sans);
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+  .btn-primary:hover { background: #6378f9; box-shadow: 0 0 12px var(--accent-glow); }
+  .btn-secondary {
+    background: var(--bg-card); color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--bg-hover); color: var(--text); }
+  .btn-success { background: #15532e; color: var(--green); border: 1px solid #22c55e40; }
+  .btn-success:hover { background: #166534; }
+  .btn-danger { background: #450a0a; color: var(--red); border: 1px solid #ef444440; }
+  .btn-danger:hover { background: #7f1d1d; }
+  .btn-warn { background: #422006; color: var(--orange); border: 1px solid #f9731640; }
+  .btn-warn:hover { background: #7c2d12; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-xs { padding: 3px 8px; font-size: 11px; }
+
+  /* ===== ORG CHART ===== */
+  .org-chart { padding: 16px; }
+  .org-node {
+    display: flex; flex-direction: column; align-items: center;
+    margin-bottom: 8px;
+  }
+  .org-row {
+    display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+    position: relative; width: 100%;
+  }
+  .org-row::before {
+    content: ''; position: absolute; top: -16px; left: 50%;
+    transform: translateX(-50%);
+    width: 1px; height: 16px; background: var(--border);
+  }
+  .org-row:first-child::before { display: none; }
+  .org-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 7px; padding: 10px 14px; min-width: 140px;
+    cursor: pointer; transition: all 0.15s; position: relative;
+    text-align: center;
+  }
+  .org-card:hover { border-color: var(--accent); background: var(--bg-hover); }
+  .org-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+  .org-card.human { border-color: #a855f740; }
+  .org-card.human:hover { border-color: var(--purple); }
+  .org-card-name { font-size: 13px; font-weight: 600; }
+  .org-card-role { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .org-card-meta {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .org-badge {
+    font-size: 10px; font-family: var(--font); padding: 2px 6px;
+    border-radius: 3px; white-space: nowrap;
+  }
+  .badge-human { background: #2e1065; color: var(--purple); }
+  .badge-ai { background: #0c1a4a; color: var(--accent); }
+  .badge-active { background: #052e16; color: var(--green); }
+  .badge-idle { background: #1a1a2e; color: var(--text-muted); }
+
+  /* Context bars in org cards */
+  .ctx-bar-wrap { margin-top: 6px; }
+  .ctx-label { font-size: 10px; color: var(--text-muted); font-family: var(--font); display: flex; justify-content: space-between; }
+  .ctx-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 2px; }
+  .ctx-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+  .ctx-green { background: var(--green); }
+  .ctx-yellow { background: var(--yellow); }
+  .ctx-red { background: var(--red); animation: ctx-blink 1s infinite; }
+  @keyframes ctx-blink { 50% { opacity: 0.5; } }
+
+  /* ===== DETAIL SIDEBAR CARD ===== */
+  .detail-section { margin-bottom: 16px; }
+  .detail-section h4 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); font-family: var(--font); margin-bottom: 8px;
+    padding-bottom: 4px; border-bottom: 1px solid var(--border-dim);
+  }
+  .detail-row {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 4px 0; font-size: 13px;
+  }
+  .detail-row .key { color: var(--text-dim); min-width: 90px; flex-shrink: 0; }
+  .detail-row .val { color: var(--text); word-break: break-word; }
+  .power-tag {
+    display: inline-block; padding: 2px 8px; margin: 2px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 3px; font-size: 11px; font-family: var(--font);
+    color: var(--text-dim);
+  }
+  .constraint-item {
+    padding: 4px 8px; margin-bottom: 4px;
+    background: #2a0a0a; border-left: 2px solid var(--red);
+    font-size: 12px; color: #fca5a5; border-radius: 0 3px 3px 0;
+  }
+
+  /* ===== FORMS ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 200; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 10px; width: 560px; max-width: 95vw;
+    max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .modal::-webkit-scrollbar { width: 4px; }
+  .modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-dim); font-size: 20px; padding: 2px 6px;
+    border-radius: 4px; transition: all 0.15s;
+  }
+  .modal-close:hover { background: var(--bg-hover); color: var(--text); }
+  .modal-body { padding: 20px; }
+  .modal-footer {
+    padding: 14px 20px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block; font-size: 12px; font-weight: 500;
+    color: var(--text-dim); margin-bottom: 5px;
+  }
+  .form-group .hint {
+    font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: var(--font);
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 8px 12px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text);
+    font-size: 13px; font-family: var(--sans);
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .form-textarea { resize: vertical; min-height: 80px; font-family: var(--font); font-size: 12px; }
+  .form-select option { background: var(--bg-card); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ===== QUEUE ITEMS ===== */
+  .queue-item {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 7px; padding: 12px 14px; margin-bottom: 10px;
+    transition: all 0.15s;
+  }
+  .queue-item:hover { border-color: var(--border); background: var(--bg-hover); }
+  .queue-item-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; margin-bottom: 8px;
+  }
+  .queue-item-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
+  .queue-item-meta {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .queue-item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .priority-badge {
+    font-size: 10px; font-family: var(--font); padding: 2px 7px;
+    border-radius: 3px; white-space: nowrap;
+  }
+  .p-high { background: #450a0a; color: var(--red); }
+  .p-med { background: #431407; color: var(--orange); }
+  .p-low { background: #14532d20; color: var(--green); }
+  .dept-tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 3px;
+    font-family: var(--font); border: 1px solid;
+  }
+  .dept-hr { color: #60a5fa; border-color: #60a5fa40; background: #0c1a4a; }
+  .dept-it { color: var(--cyan); border-color: #06b6d440; background: #0c2a3a; }
+  .dept-ceo { color: var(--purple); border-color: #a855f740; background: #1a0a3a; }
+  .dept-board { color: var(--yellow); border-color: #eab30840; background: #1a1200; }
+  .status-tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 3px;
+    font-family: var(--font);
+  }
+  .s-pending { background: #1a1200; color: var(--yellow); }
+  .s-progress { background: #0c1a4a; color: var(--accent); }
+  .s-done { background: #052e16; color: var(--green); }
+  .s-rejected { background: #450a0a; color: var(--red); }
+  .queue-empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
+
+  /* ===== CONTEXT MONITOR ===== */
+  .context-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border-dim);
+  }
+  .context-row:last-child { border-bottom: none; }
+  .context-agent { min-width: 110px; font-size: 13px; font-weight: 500; }
+  .context-dept { min-width: 60px; font-size: 11px; color: var(--text-muted); font-family: var(--font); }
+  .context-bar-wrap { flex: 1; }
+  .context-bar {
+    height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
+    cursor: pointer; position: relative;
+  }
+  .context-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .context-pct { min-width: 40px; text-align: right; font-family: var(--font); font-size: 12px; }
+  .context-alert {
+    padding: 8px 12px; border-radius: 5px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+  }
+  .alert-warn { background: #431407; border: 1px solid var(--orange); color: var(--orange); }
+  .alert-crit { background: #450a0a; border: 1px solid var(--red); color: var(--red); animation: ctx-blink 1s infinite; }
+
+  /* ===== SOP VIEWER ===== */
+  .sop-select-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .sop-select-row .form-select { flex: 1; }
+  .sop-content {
+    background: var(--bg-card); border: 1px solid var(--border-dim);
+    border-radius: 6px; padding: 16px;
+    font-family: var(--font); font-size: 12px; line-height: 1.7;
+    max-height: 350px; overflow-y: auto;
+    color: var(--text-dim);
+  }
+  .sop-content::-webkit-scrollbar { width: 4px; }
+  .sop-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sop-content h1 { font-size: 15px; color: var(--text); margin-bottom: 12px; font-family: var(--sans); }
+  .sop-content h2 { font-size: 12px; color: var(--accent); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sop-content h3 { font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+  .sop-content p { margin-bottom: 8px; }
+  .sop-content ul, .sop-content ol { padding-left: 18px; margin-bottom: 8px; }
+  .sop-content li { margin-bottom: 3px; }
+  .sop-content strong { color: var(--text); }
+  .sop-content code {
+    background: var(--bg-input); padding: 1px 5px; border-radius: 3px;
+    font-size: 11px; color: var(--cyan);
+  }
+  .sop-content pre {
+    background: var(--bg-input); padding: 10px; border-radius: 5px;
+    overflow-x: auto; margin: 8px 0;
+  }
+  .sop-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+  .sop-content th { background: var(--bg-input); color: var(--text-dim); padding: 6px 10px; text-align: left; border: 1px solid var(--border); }
+  .sop-content td { padding: 6px 10px; border: 1px solid var(--border-dim); color: var(--text-dim); }
+  .sop-meta { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .sop-meta-item { font-size: 11px; font-family: var(--font); }
+  .sop-meta-item .label { color: var(--text-muted); }
+  .sop-meta-item .val { color: var(--text-dim); }
+
+  /* ===== ACTIVITY LOG ===== */
+  .log-filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .log-filter-btn {
+    padding: 3px 10px; border-radius: 3px; border: 1px solid var(--border);
+    background: none; cursor: pointer; font-size: 11px; font-family: var(--font);
+    color: var(--text-muted); transition: all 0.15s;
+  }
+  .log-filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .log-filter-btn:hover:not(.active) { background: var(--bg-hover); color: var(--text-dim); }
+  .log-list { max-height: 320px; overflow-y: auto; }
+  .log-list::-webkit-scrollbar { width: 4px; }
+  .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-entry {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 7px 0; border-bottom: 1px solid var(--border-dim); font-size: 12px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { font-family: var(--font); color: var(--text-muted); min-width: 52px; flex-shrink: 0; font-size: 11px; margin-top: 1px; }
+  .log-actor {
+    min-width: 60px; flex-shrink: 0; font-family: var(--font);
+    font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 3px;
+    text-align: center; white-space: nowrap;
+  }
+  .log-msg { color: var(--text-dim); line-height: 1.4; }
+
+  /* ===== WORKFLOW PROGRESS ===== */
+  .workflow-panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 7px; padding: 14px; margin-top: 12px;
+  }
+  .workflow-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .workflow-step {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 6px 0; font-size: 12px;
+  }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; font-family: var(--font);
+  }
+  .step-done { background: var(--green); color: #000; }
+  .step-active { background: var(--accent); color: #fff; animation: pulse 1.5s infinite; }
+  .step-pending { background: var(--border); color: var(--text-muted); }
+  .step-body { flex: 1; }
+  .step-actor { font-size: 10px; font-family: var(--font); color: var(--text-muted); }
+  .step-action { color: var(--text-dim); margin-top: 1px; }
+
+  /* ===== QUICK ACTIONS BAR ===== */
+  .quick-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .quick-actions .divider {
+    width: 1px; height: 24px; background: var(--border);
+  }
+  .quick-label { font-size: 11px; color: var(--text-muted); font-family: var(--font); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ===== TOAST ===== */
+  .toast-container {
+    position: fixed; bottom: 24px; right: 24px; z-index: 500;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    padding: 10px 16px; border-radius: 6px; min-width: 260px;
+    font-size: 13px; display: flex; align-items: flex-start; gap: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .toast-success { background: #052e16; border: 1px solid var(--green); color: var(--green); }
+  .toast-info { background: #0c1a4a; border: 1px solid var(--accent); color: var(--accent); }
+  .toast-warn { background: #431407; border: 1px solid var(--orange); color: var(--orange); }
+  .toast-close { margin-left: auto; cursor: pointer; opacity: 0.6; }
+  .toast-close:hover { opacity: 1; }
+
+  /* ===== GENERATED JSON ===== */
+  .json-output {
+    background: var(--bg-root); border: 1px solid var(--border);
+    border-radius: 5px; padding: 12px; font-family: var(--font);
+    font-size: 11px; color: var(--cyan); line-height: 1.6;
+    max-height: 200px; overflow-y: auto; white-space: pre;
+  }
+  .json-output::-webkit-scrollbar { width: 4px; }
+  .json-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ===== MISC ===== */
+  .empty-state {
+    text-align: center; padding: 24px;
+    color: var(--text-muted); font-size: 13px;
+  }
+  .sep { height: 1px; background: var(--border-dim); margin: 12px 0; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .inline-code {
+    font-family: var(--font); font-size: 11px;
+    background: var(--bg-input); padding: 1px 5px;
+    border-radius: 3px; color: var(--cyan);
+  }
+
+  /* ===== CONNECTOR LINES ===== */
+  .org-connector { text-align: center; }
+  .org-connector-line {
+    width: 1px; height: 20px; background: var(--border);
+    margin: 0 auto;
+  }
+  .org-connector-branch {
+    display: flex; justify-content: center; gap: 80px;
+    position: relative; padding: 0 20px;
+  }
+  .org-connector-branch::before {
+    content: ''; position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 70%; height: 1px; background: var(--border);
+  }
+
+  @media (max-width: 1200px) {
+    .app-body { grid-template-columns: 280px 1fr; }
+    .main-content { grid-template-columns: 1fr; }
+    .panel.span-2 { grid-column: span 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="app-header">
+  <div class="logo">
+    <div class="logo-mark">N</div>
+    <div>
+      <div class="logo-text">NEXUS AI-Team</div>
+      <div class="logo-sub">Chain of Command — v1.0</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill"><div class="dot"></div>System Operational</div>
+    <div class="header-time" id="header-clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ===== MAIN BODY ===== -->
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" onclick="switchSidebarTab('detail', this)">Detail</button>
+      <button class="sidebar-tab" onclick="switchSidebarTab('sop', this)">SOPs</button>
+      <button class="sidebar-tab" onclick="switchSidebarTab('log', this)">Log</button>
+    </div>
+
+    <!-- Detail Tab -->
+    <div class="sidebar-content" id="tab-detail">
+      <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:32px 16px;">
+        Click any node in the org chart to view details.
+      </div>
+    </div>
+
+    <!-- SOP Tab -->
+    <div class="sidebar-content" id="tab-sop" style="display:none;">
+      <div class="sop-select-row">
+        <select class="form-select" id="sop-select" onchange="renderSop(this.value)">
+          <option value="">-- Select SOP --</option>
+          <option value="hire-employee">Hire Employee</option>
+          <option value="add-tool">Add Tool</option>
+          <option value="create-department">Create Department</option>
+          <option value="context-handoff">Context Handoff</option>
+        </select>
+      </div>
+      <div id="sop-display"><div class="empty-state">Select a SOP above to view it.</div></div>
+    </div>
+
+    <!-- Log Tab -->
+    <div class="sidebar-content" id="tab-log" style="display:none;">
+      <div class="log-filters">
+        <button class="log-filter-btn active" onclick="filterLog('all', this)">All</button>
+        <button class="log-filter-btn" onclick="filterLog('ceo', this)">CEO</button>
+        <button class="log-filter-btn" onclick="filterLog('hr', this)">HR</button>
+        <button class="log-filter-btn" onclick="filterLog('it', this)">IT</button>
+        <button class="log-filter-btn" onclick="filterLog('board', this)">Board</button>
+      </div>
+      <div class="log-list" id="log-list"></div>
+    </div>
+  </aside>
+
+  <!-- MAIN TOP BAR -->
+  <div class="main-top">
+    <div class="quick-label">Actions</div>
+    <div class="quick-actions">
+      <button class="btn btn-primary" onclick="openModal('modal-create-dept')">
+        <span>+</span> Create Department
+      </button>
+      <button class="btn btn-secondary" onclick="openModal('modal-request-tool')">
+        <span>&#9881;</span> Request Tool
+      </button>
+      <button class="btn btn-secondary" onclick="openModal('modal-hire-employee')">
+        <span>&#43;</span> Hire Employee
+      </button>
+      <div class="divider"></div>
+      <button class="btn btn-secondary btn-sm" onclick="openModal('modal-ceo-contract')">
+        Issue Contract
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="simulateContextAlert()">
+        Simulate Alert
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT PANELS -->
+  <div class="main-content">
+
+    <!-- Panel: Org Chart -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">Org Chart — Live View</span>
+        <span style="font-size:11px;color:var(--text-muted);font-family:var(--font);">Source: company/chain-of-command.yaml</span>
+      </div>
+      <div class="org-chart" id="org-chart"></div>
+    </div>
+
+    <!-- Panel: Approval Queue -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Approval Queue</span>
+        <span class="org-badge badge-ai" id="queue-count" style="font-size:11px;">0 pending</span>
+      </div>
+      <div class="panel-body" id="approval-queue">
+        <div class="queue-empty">No pending approvals.</div>
+      </div>
+    </div>
+
+    <!-- Panel: Context Monitor -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Context Monitor</span>
+        <button class="btn btn-secondary btn-xs" onclick="refreshContextBars()">Refresh</button>
+      </div>
+      <div class="panel-body" id="context-monitor"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Create Department -->
+<div class="modal-overlay" id="modal-create-dept">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Create New Department</span>
+      <button class="modal-close" onclick="closeModal('modal-create-dept')">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:8px 12px;background:#0c1a4a;border:1px solid var(--accent);border-radius:5px;font-size:12px;color:var(--accent);margin-bottom:16px;">
+        This will trigger the 10-step department creation workflow. Board approval may be required if budget is involved.
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Department Name *</label>
+          <input type="text" class="form-input" id="dept-name" placeholder="e.g. Marketing Team">
+        </div>
+        <div class="form-group">
+          <label>Department ID *</label>
+          <input type="text" class="form-input" id="dept-id" placeholder="e.g. marketing">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Purpose / Description *</label>
+        <textarea class="form-textarea" id="dept-purpose" placeholder="What is this department's core function?"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Initial Headcount</label>
+          <input type="number" class="form-input" id="dept-headcount" value="2" min="1" max="20">
+          <div class="hint">Manager + N workers</div>
+        </div>
+        <div class="form-group">
+          <label>Budget Required?</label>
+          <select class="form-select" id="dept-budget">
+            <option value="none">No budget needed</option>
+            <option value="tools">Tools / Software only</option>
+            <option value="hardware">Hardware required</option>
+            <option value="external">External contractors</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Required Tools (comma-separated)</label>
+        <input type="text" class="form-input" id="dept-tools" placeholder="e.g. xhs-auto-login, analytics-sdk">
+      </div>
+      <div class="form-group">
+        <label>Key Skills Required</label>
+        <textarea class="form-textarea" id="dept-skills" placeholder="List key skills for this department's agents..."></textarea>
+      </div>
+      <div id="dept-workflow-progress" style="display:none;">
+        <div class="sep"></div>
+        <div class="workflow-panel">
+          <div class="workflow-title">Department Creation Workflow</div>
+          <div id="workflow-steps"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-create-dept')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateDept()">Dispatch to CEO</button>
+    </div>
+  </div>
+</div>
+
+<!-- Request Tool -->
+<div class="modal-overlay" id="modal-request-tool">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Request Tool / Equipment</span>
+      <button class="modal-close" onclick="closeModal('modal-request-tool')">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tool Name *</label>
+          <input type="text" class="form-input" id="tool-name" placeholder="e.g. xhs-auto-login">
+        </div>
+        <div class="form-group">
+          <label>Requesting Department *</label>
+          <select class="form-select" id="tool-dept">
+            <option value="ceo">CEO (direct)</option>
+            <option value="hr">HR Team</option>
+            <option value="it">IT Team</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Purpose / Requirements *</label>
+        <textarea class="form-textarea" id="tool-purpose" placeholder="What does this tool need to do? Any specific requirements?"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Scope</label>
+          <select class="form-select" id="tool-scope">
+            <option value="single">Single department</option>
+            <option value="multi">Multiple departments</option>
+            <option value="system">System-wide</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select class="form-select" id="tool-priority">
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Known Candidates (optional)</label>
+        <input type="text" class="form-input" id="tool-candidates" placeholder="e.g. https://github.com/user/repo">
+        <div class="hint">IT will search regardless, but this speeds up evaluation</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-request-tool')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitToolRequest()">Send to IT</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hire Employee -->
+<div class="modal-overlay" id="modal-hire-employee">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Request New Employee</span>
+      <button class="modal-close" onclick="closeModal('modal-hire-employee')">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Role Title *</label>
+          <input type="text" class="form-input" id="hire-role" placeholder="e.g. Content Writer">
+        </div>
+        <div class="form-group">
+          <label>Department *</label>
+          <select class="form-select" id="hire-dept">
+            <option value="hr">HR Team</option>
+            <option value="it">IT Team</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Reason for Hire *</label>
+        <select class="form-select" id="hire-reason">
+          <option value="expansion">Business expansion</option>
+          <option value="context">Manager context overload (>80%)</option>
+          <option value="skills">New skills required</option>
+          <option value="workload">Workload management</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Required Skills *</label>
+        <textarea class="form-textarea" id="hire-skills" placeholder="List specific skills, tools, and competencies this agent needs..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Reports To</label>
+        <select class="form-select" id="hire-reports-to">
+          <option value="hr_manager">HR Manager</option>
+          <option value="it_manager">IT Manager</option>
+          <option value="ceo">CEO (direct)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Additional Notes</label>
+        <textarea class="form-textarea" id="hire-notes" placeholder="Any special instructions, context to transfer, tools needed..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-hire-employee')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitHireRequest()">Send to HR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Issue Contract (CEO) -->
+<div class="modal-overlay" id="modal-ceo-contract">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Issue CEO Contract</span>
+      <button class="modal-close" onclick="closeModal('modal-ceo-contract')">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contract ID *</label>
+          <input type="text" class="form-input" id="contract-id" placeholder="e.g. contract-2026-001">
+        </div>
+        <div class="form-group">
+          <label>Assigned To *</label>
+          <select class="form-select" id="contract-assignee">
+            <option value="hr_manager">HR Manager</option>
+            <option value="it_manager">IT Manager</option>
+            <option value="pm">Project Manager</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Objective *</label>
+        <textarea class="form-textarea" id="contract-objective" placeholder="What needs to be accomplished?"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Priority</label>
+          <select class="form-select" id="contract-priority">
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Deadline</label>
+          <input type="text" class="form-input" id="contract-deadline" placeholder="e.g. EOD, 2026-02-20">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Deliverables</label>
+        <textarea class="form-textarea" id="contract-deliverables" placeholder="List expected outputs (one per line)..."></textarea>
+      </div>
+      <div id="contract-json-output" style="display:none;">
+        <div class="sep"></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font);">Generated Contract JSON:</div>
+        <div class="json-output" id="contract-json"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-ceo-contract')">Cancel</button>
+      <button class="btn btn-secondary" onclick="previewContract()">Preview JSON</button>
+      <button class="btn btn-primary" onclick="issueContract()">Issue Contract</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Request Details -->
+<div class="modal-overlay" id="modal-view-request">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="view-request-title">Request Details</span>
+      <button class="modal-close" onclick="closeModal('modal-view-request')">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="view-request-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-view-request')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ============================================================
+// DATA — embedded from company/chain-of-command.yaml
+// ============================================================
+const COC_DATA = {
+  version: "1.0",
+  updated: "2026-02-19",
+  hierarchy: {
+    board: {
+      id: "board", role: "Board of Directors", type: "human", level: 0,
+      authority: "supreme",
+      description: "Human user. Highest authority. Approves budget, hardware, major decisions.",
+      powers: ["approve_department_creation","approve_budget","approve_hardware","override_any_decision","set_strategic_direction"],
+      constraints: []
+    },
+    ceo: {
+      id: "ceo", role: "CEO", type: "ai_agent", level: 1, authority: "executive",
+      reports_to: "board", model: "capable",
+      description: "Highest AI authority. Architecture and direction only. Never touches code. Keeps context clean.",
+      powers: ["issue_contracts","request_department_creation","request_system_upgrade","dispatch_project_manager","approve_hiring","approve_tool_requests"],
+      constraints: ["Never reads or writes code","Major changes require board approval","Delegates all execution work"],
+      context_threshold: 0.80,
+      assistants: { enabled: true, spawn_trigger: "context > 0.80 OR concurrent_contracts > 5", max_count: 3 }
+    }
+  },
+  departments: {
+    hr: {
+      id: "hr", name: "HR Team", type: "builtin", status: "active",
+      manager: "hr_manager", level: 2, reports_to: "ceo",
+      description: "Workforce management. Generates JDs, onboards agents, creates departments.",
+      sops: ["hire-employee","create-department"],
+      perspectives: { ceo_sees: "Add department, Add employee", peer_sees: "Request personnel" }
+    },
+    it: {
+      id: "it", name: "IT Team", type: "builtin", status: "active",
+      manager: "it_manager", level: 2, reports_to: "ceo",
+      description: "System architecture, tools, GitHub. Only dept that understands infrastructure.",
+      sops: ["add-tool","system-upgrade"],
+      perspectives: { ceo_sees: "Add tools, System-wide upgrade", peer_sees: "Request tools" }
+    }
+  },
+  context_management: {
+    alert_threshold: 0.80,
+    critical_threshold: 0.90,
+    handoff_protocol: [
+      "Manager context hits alert threshold (>80%)",
+      "Manager requests HR for new worker",
+      "HR provisions new worker agent",
+      "Manager writes training doc: transfers JD execution details + work logs to worker JD.md",
+      "Worker executes test task, Manager QA-checks",
+      "On PASS: Manager deletes transferred content from own JD.md and work records",
+      "Manager context drops to ~35%, returns to pure management role"
+    ]
+  }
+};
+
+const DEPT_CREATION_STEPS = [
+  { actor: "ceo",     action: "Identify capability gap" },
+  { actor: "ceo",     action: "Dispatch Project Manager to investigate" },
+  { actor: "pm",      action: "Research workflow, tools needed, system requirements" },
+  { actor: "pm",      action: "Deliver project plan to CEO" },
+  { actor: "ceo",     action: "Send tool requirements to IT" },
+  { actor: "ceo",     action: "Send agent JD specs to HR" },
+  { actor: "ceo",     action: "Request board approval if budget/hardware needed" },
+  { actor: "hr",      action: "Generate department + agent JDs" },
+  { actor: "ceo",     action: "Activate department" },
+  { actor: "manager", action: "Begin operations (solo if light load)" }
+];
+
+const SOP_DATA = {
+  "hire-employee": {
+    owner: "HR Team",
+    trigger_authority: "CEO, any peer manager, auto-trigger on context >80%",
+    file: "company/sops/hire-employee.md",
+    content: `# SOP: Hire New Employee
+
+## Trigger Conditions
+- CEO directive
+- Peer manager staffing request
+- Context alert (auto-trigger when agent context > 80%)
+
+## Steps
+1. Receive role requirements (skills, tools, department, reason)
+2. Generate JD using RACE profile template
+3. Write JD to \`agents/jds/{agent_id}.md\`
+4. Register agent in \`company/org.yaml\`
+5. If replacing manager workload: execute Training & Handoff Protocol
+6. Notify requester with agent ID and JD path
+
+## Training & Handoff Protocol
+When a manager offloads execution work to a new hire:
+1. Manager extracts execution-level content from own JD.md
+2. Manager writes training section into new worker's JD.md
+3. Worker executes one test task under observation
+4. Manager QA-checks result
+5. **On PASS**: Manager deletes transferred content from own JD.md
+6. Manager context freed, returns to management role (~35% target)
+7. Log handoff to \`logs/handoffs.log\`
+
+## Approval Requirements
+| Action | Approval Needed |
+|---|---|
+| Hire new employee | None |
+| Create new department | CEO required |
+| External contractor | Board required |`
+  },
+  "add-tool": {
+    owner: "IT Team",
+    trigger_authority: "CEO, any peer manager",
+    file: "company/sops/add-tool.md",
+    content: `# SOP: Add Tool / Equipment
+
+## Trigger Conditions
+- CEO directive
+- Peer manager tool request via contract
+
+## Steps
+1. Receive tool requirements (name, purpose, target department, constraints)
+2. Search GitHub / tools marketplace for candidates
+3. Evaluate: compatibility, security, dependencies
+4. Select best candidate, document rationale
+5. Install and configure
+6. Write tool spec to \`equipment/{tool_id}.yaml\`
+7. Run integration test in sandbox
+8. **On PASS**: notify requester with tool ID and usage
+9. Log to \`logs/it-activity.log\`
+
+## Approval Requirements
+| Action | Approval Needed |
+|---|---|
+| Add new tool | None |
+| System-wide upgrade | CEO required |
+| Hardware purchase | Board required |
+| External API / paid service | CEO required |`
+  },
+  "create-department": {
+    owner: "HR Team (exec) / CEO (authority)",
+    trigger_authority: "CEO only",
+    file: "company/sops/create-department.md",
+    content: `# SOP: Create New Department
+
+## Trigger Conditions
+- CEO identifies capability gap
+- **Only CEO can initiate this workflow**
+
+## Steps
+| Step | Actor | Action |
+|---|---|---|
+| 1 | CEO | Identify capability gap |
+| 2 | CEO | Dispatch PM to investigate |
+| 3 | PM | Research workflow, tools, agent roles |
+| 4 | PM | Deliver project plan to CEO |
+| 5 | CEO | Review plan, request revisions if needed |
+| 6 | CEO | Send tool requirements to IT |
+| 7 | CEO | Send JD specs to HR |
+| 8 | CEO | Request Board approval if budget needed |
+| 9 | IT | Source and install required tools |
+| 10 | HR | Generate department + agent configs |
+| 11 | HR | Update org.yaml and chain-of-command.yaml |
+| 12 | CEO | Activate department |
+| 13 | Manager | Begin operations |
+
+## Approval Requirements
+| Scenario | Approval Needed |
+|---|---|
+| No budget | CEO |
+| Requires tools | CEO + IT |
+| Budget / hardware | Board |
+| External contractors | Board |`
+  },
+  "context-handoff": {
+    owner: "All Departments",
+    trigger_authority: "Auto-trigger at context >80%",
+    file: "company/chain-of-command.yaml",
+    content: `# Context Handoff Protocol
+
+## Trigger
+- Manager context hits **alert threshold (>80%)**
+
+## 7-Step Protocol
+1. Manager context hits alert threshold (>80%)
+2. Manager requests HR for new worker
+3. HR provisions new worker agent
+4. Manager writes training doc: transfers JD execution details + work logs to worker JD.md
+5. Worker executes test task, Manager QA-checks
+6. **On PASS**: Manager deletes transferred content from own JD.md and work records
+7. Manager context drops to ~35%, returns to pure management role
+
+## Thresholds
+| Level | Threshold | Action |
+|---|---|---|
+| Alert | 80% | Request new worker |
+| Critical | 90% | Immediate handoff |
+
+## Why This Matters
+The CEO and managers must maintain low context to preserve strategic clarity.
+Execution details live in worker JDs, not manager memory.`
+  }
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let approvalQueue = [];
+let activityLog = [];
+let contextData = {
+  board:      { pct: 0,  dept: "Board",  model: "human",   status: "active" },
+  ceo:        { pct: 62, dept: "Exec",   model: "opus",    status: "active" },
+  hr_manager: { pct: 45, dept: "HR",     model: "sonnet",  status: "active" },
+  it_manager: { pct: 38, dept: "IT",     model: "sonnet",  status: "active" }
+};
+let logFilter = "all";
+let selectedOrgNode = null;
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  renderOrgChart();
+  renderContextMonitor();
+  renderApprovalQueue();
+  renderActivityLog();
+  startClock();
+
+  // seed a couple of log entries
+  addLog("system", "System initialized. Chain of command loaded from chain-of-command.yaml.");
+  addLog("ceo",    "CEO ready. Context at 62%. Awaiting directives.");
+  addLog("hr",     "HR Manager ready. 0 open staffing requests.");
+  addLog("it",     "IT Manager ready. Equipment inventory current.");
+});
+
+function startClock() {
+  const el = document.getElementById('header-clock');
+  setInterval(() => {
+    el.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+  }, 1000);
+}
+
+// ============================================================
+// ORG CHART
+// ============================================================
+function renderOrgChart() {
+  const el = document.getElementById('org-chart');
+  const ctx = contextData;
+
+  const depts = Object.values(COC_DATA.departments);
+  const dynamicDepts = depts.filter(d => d.type === 'dynamic');
+  const builtinDepts = depts.filter(d => d.type === 'builtin');
+
+  el.innerHTML = `
+    <div class="org-node">
+      <div class="org-row" style="margin-bottom:0;">
+        ${renderOrgCard('board', COC_DATA.hierarchy.board, ctx.board)}
+      </div>
+      <div class="org-connector"><div class="org-connector-line"></div></div>
+      <div class="org-row">
+        ${renderOrgCard('ceo', COC_DATA.hierarchy.ceo, ctx.ceo)}
+      </div>
+      <div class="org-connector"><div class="org-connector-line"></div></div>
+      <div class="org-row" id="dept-row">
+        ${builtinDepts.map(d => renderDeptCard(d)).join('')}
+        ${dynamicDepts.map(d => renderDeptCard(d)).join('')}
+        <div class="org-card" style="border-style:dashed;cursor:pointer;min-width:120px;opacity:0.5;"
+             onclick="openModal('modal-create-dept')">
+          <div class="org-card-name" style="color:var(--text-muted);">+ New Dept</div>
+          <div class="org-card-role" style="color:var(--text-muted);font-size:11px;">Click to create</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderOrgCard(id, node, ctxEntry) {
+  const pct = ctxEntry ? ctxEntry.pct : 0;
+  const colorClass = pct >= 90 ? 'ctx-red' : pct >= 80 ? 'ctx-yellow' : 'ctx-green';
+  const typeClass = node.type === 'human' ? 'human' : '';
+  const badge = node.type === 'human' ? 'badge-human' : 'badge-ai';
+  const badgeLabel = node.type === 'human' ? 'HUMAN' : node.model || 'AI';
+  const isSelected = selectedOrgNode === id ? 'active' : '';
+
+  return `
+    <div class="org-card ${typeClass} ${isSelected}" onclick="selectOrgNode('${id}', 'hierarchy')">
+      <div class="org-card-name">${escHtml(node.role)}</div>
+      <div class="org-card-meta">
+        <span class="org-badge ${badge}">${badgeLabel}</span>
+        <span class="org-badge badge-active">Level ${node.level}</span>
+      </div>
+      ${node.type !== 'human' ? `
+      <div class="ctx-bar-wrap">
+        <div class="ctx-label"><span>CTX</span><span>${pct}%</span></div>
+        <div class="ctx-bar"><div class="ctx-fill ${colorClass}" style="width:${pct}%"></div></div>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function renderDeptCard(dept) {
+  const managerCtx = contextData[dept.manager];
+  const pct = managerCtx ? managerCtx.pct : 0;
+  const colorClass = pct >= 90 ? 'ctx-red' : pct >= 80 ? 'ctx-yellow' : 'ctx-green';
+  const statusBadge = dept.status === 'active' ? 'badge-active' : 'badge-idle';
+  const isSelected = selectedOrgNode === dept.id ? 'active' : '';
+
+  return `
+    <div class="org-card ${isSelected}" onclick="selectOrgNode('${dept.id}', 'department')">
+      <div class="org-card-name">${escHtml(dept.name)}</div>
+      <div class="org-card-role">${escHtml(dept.manager)}</div>
+      <div class="org-card-meta">
+        <span class="org-badge ${statusBadge}">${dept.status.toUpperCase()}</span>
+        <span class="org-badge badge-ai">${dept.type}</span>
+      </div>
+      <div class="ctx-bar-wrap">
+        <div class="ctx-label"><span>MGR CTX</span><span>${pct}%</span></div>
+        <div class="ctx-bar"><div class="ctx-fill ${colorClass}" style="width:${pct}%"></div></div>
+      </div>
+    </div>
+  `;
+}
+
+function selectOrgNode(id, nodeType) {
+  selectedOrgNode = id;
+  renderOrgChart(); // re-render to show selection
+
+  const tab = document.getElementById('tab-detail');
+  switchSidebarTab('detail', document.querySelector('.sidebar-tab'));
+
+  if (nodeType === 'hierarchy') {
+    const node = COC_DATA.hierarchy[id];
+    const ctxEntry = contextData[id];
+    tab.innerHTML = renderNodeDetail(id, node, ctxEntry, 'hierarchy');
+  } else {
+    const dept = COC_DATA.departments[id];
+    const ctxEntry = contextData[dept.manager];
+    tab.innerHTML = renderDeptDetail(dept, ctxEntry);
+  }
+}
+
+function renderNodeDetail(id, node, ctxEntry, type) {
+  const pct = ctxEntry ? ctxEntry.pct : 0;
+  const colorClass = pct >= 90 ? 'ctx-red' : pct >= 80 ? 'ctx-yellow' : 'ctx-green';
+  return `
+    <div class="detail-section">
+      <h4>${escHtml(node.role)}</h4>
+      <div class="detail-row"><span class="key">Type</span><span class="val">${node.type}</span></div>
+      <div class="detail-row"><span class="key">Authority</span><span class="val">${node.authority}</span></div>
+      <div class="detail-row"><span class="key">Level</span><span class="val">${node.level}</span></div>
+      ${node.reports_to ? `<div class="detail-row"><span class="key">Reports to</span><span class="val">${node.reports_to}</span></div>` : ''}
+      ${node.model ? `<div class="detail-row"><span class="key">Model tier</span><span class="val">${node.model}</span></div>` : ''}
+    </div>
+    <div class="detail-section">
+      <h4>Description</h4>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">${escHtml(node.description)}</div>
+    </div>
+    ${pct > 0 ? `
+    <div class="detail-section">
+      <h4>Context</h4>
+      <div class="ctx-label" style="margin-bottom:4px;"><span>Usage</span><span>${pct}%</span></div>
+      <div class="ctx-bar" style="height:8px;"><div class="ctx-fill ${colorClass}" style="width:${pct}%"></div></div>
+      ${pct >= 80 ? `<div style="font-size:11px;color:var(--orange);margin-top:6px;">Alert: Context above threshold. Consider handoff.</div>` : ''}
+    </div>` : ''}
+    <div class="detail-section">
+      <h4>Powers</h4>
+      <div class="tag-row">${(node.powers||[]).map(p=>`<span class="power-tag">${p}</span>`).join('')}</div>
+    </div>
+    ${node.constraints && node.constraints.length ? `
+    <div class="detail-section">
+      <h4>Constraints</h4>
+      ${node.constraints.map(c=>`<div class="constraint-item">${escHtml(c)}</div>`).join('')}
+    </div>` : ''}
+    ${node.assistants ? `
+    <div class="detail-section">
+      <h4>Assistants</h4>
+      <div class="detail-row"><span class="key">Enabled</span><span class="val">${node.assistants.enabled}</span></div>
+      <div class="detail-row"><span class="key">Trigger</span><span class="val">${escHtml(node.assistants.spawn_trigger)}</span></div>
+      <div class="detail-row"><span class="key">Max count</span><span class="val">${node.assistants.max_count}</span></div>
+    </div>` : ''}
+  `;
+}
+
+function renderDeptDetail(dept, ctxEntry) {
+  const pct = ctxEntry ? ctxEntry.pct : 0;
+  const colorClass = pct >= 90 ? 'ctx-red' : pct >= 80 ? 'ctx-yellow' : 'ctx-green';
+  const sops = dept.sops || [];
+  return `
+    <div class="detail-section">
+      <h4>${escHtml(dept.name)}</h4>
+      <div class="detail-row"><span class="key">Type</span><span class="val">${dept.type}</span></div>
+      <div class="detail-row"><span class="key">Status</span><span class="val">${dept.status}</span></div>
+      <div class="detail-row"><span class="key">Level</span><span class="val">${dept.level}</span></div>
+      <div class="detail-row"><span class="key">Manager</span><span class="val"><span class="inline-code">${dept.manager}</span></span></div>
+      <div class="detail-row"><span class="key">Reports to</span><span class="val">${dept.reports_to}</span></div>
+    </div>
+    <div class="detail-section">
+      <h4>Description</h4>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">${escHtml(dept.description)}</div>
+    </div>
+    <div class="detail-section">
+      <h4>Manager Context</h4>
+      <div class="ctx-label" style="margin-bottom:4px;"><span>${dept.manager}</span><span>${pct}%</span></div>
+      <div class="ctx-bar" style="height:8px;"><div class="ctx-fill ${colorClass}" style="width:${pct}%"></div></div>
+      ${pct >= 80 ? `<div style="font-size:11px;color:var(--orange);margin-top:6px;">Context alert — handoff protocol available.</div>` : ''}
+    </div>
+    <div class="detail-section">
+      <h4>SOPs</h4>
+      <div class="tag-row">${sops.map(s=>`<span class="power-tag" style="cursor:pointer;" onclick="viewSop('${s}')">${s}</span>`).join('')}</div>
+    </div>
+    ${dept.perspectives ? `
+    <div class="detail-section">
+      <h4>Perspectives</h4>
+      <div class="detail-row"><span class="key">CEO sees</span><span class="val">${escHtml(dept.perspectives.ceo_sees)}</span></div>
+      <div class="detail-row"><span class="key">Peer sees</span><span class="val">${escHtml(dept.perspectives.peer_sees)}</span></div>
+    </div>` : ''}
+    <div style="margin-top:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="openModal('modal-hire-employee')">Request Employee</button>
+    </div>
+  `;
+}
+
+function viewSop(sopId) {
+  switchSidebarTab('sop', document.querySelectorAll('.sidebar-tab')[1]);
+  document.getElementById('sop-select').value = sopId;
+  renderSop(sopId);
+}
+
+// ============================================================
+// CONTEXT MONITOR
+// ============================================================
+function renderContextMonitor() {
+  const el = document.getElementById('context-monitor');
+  const alerts = Object.entries(contextData).filter(([,v]) => v.pct >= 80 && v.model !== 'human');
+
+  let html = '';
+  if (alerts.length > 0) {
+    alerts.forEach(([id, v]) => {
+      const cls = v.pct >= 90 ? 'alert-crit' : 'alert-warn';
+      const icon = v.pct >= 90 ? '!! CRITICAL' : '! ALERT';
+      html += `<div class="context-alert ${cls}">
+        <span><strong>${icon}</strong>: ${id} at ${v.pct}% context.</span>
+        <button class="btn btn-secondary btn-xs" onclick="triggerHandoff('${id}')">Handoff</button>
+      </div>`;
+    });
+  }
+
+  Object.entries(contextData).forEach(([id, v]) => {
+    if (v.model === 'human') return;
+    const colorClass = v.pct >= 90 ? 'ctx-red' : v.pct >= 80 ? 'ctx-yellow' : 'ctx-green';
+    html += `
+      <div class="context-row">
+        <div class="context-agent">${id}</div>
+        <div class="context-dept">${v.dept}</div>
+        <div class="context-bar-wrap">
+          <div class="context-bar" title="Click to edit context" onclick="editContext('${id}')">
+            <div class="context-bar-fill ${colorClass}" style="width:${v.pct}%"></div>
+          </div>
+        </div>
+        <div class="context-pct" style="color:${v.pct>=90?'var(--red)':v.pct>=80?'var(--yellow)':'var(--text-dim)'}">${v.pct}%</div>
+      </div>
+    `;
+  });
+
+  el.innerHTML = html;
+}
+
+function refreshContextBars() {
+  // Simulate slight changes in context
+  Object.entries(contextData).forEach(([id, v]) => {
+    if (v.model === 'human') return;
+    const delta = (Math.random() - 0.3) * 5;
+    v.pct = Math.max(5, Math.min(98, Math.round(v.pct + delta)));
+  });
+  renderContextMonitor();
+  renderOrgChart();
+  showToast("info", "Context data refreshed.");
+}
+
+function editContext(agentId) {
+  const current = contextData[agentId].pct;
+  const newVal = prompt(`Set context % for ${agentId} (current: ${current}):`, current);
+  if (newVal !== null && !isNaN(parseInt(newVal))) {
+    contextData[agentId].pct = Math.max(0, Math.min(100, parseInt(newVal)));
+    renderContextMonitor();
+    renderOrgChart();
+    addLog("system", `Context manually set: ${agentId} = ${contextData[agentId].pct}%`);
+  }
+}
+
+function triggerHandoff(agentId) {
+  addLog("hr", `Context handoff triggered for ${agentId}. Initiating 7-step protocol.`);
+  showToast("warn", `Handoff protocol initiated for ${agentId}. Check Log.`);
+  // Simulate handoff reducing context after a delay
+  setTimeout(() => {
+    const original = contextData[agentId].pct;
+    contextData[agentId].pct = 35;
+    renderContextMonitor();
+    renderOrgChart();
+    addLog("hr", `Handoff complete for ${agentId}. Context: ${original}% → 35%. Manager returned to management role.`);
+    showToast("success", `${agentId} handoff complete. Context reduced to 35%.`);
+  }, 3000);
+}
+
+function simulateContextAlert() {
+  contextData.ceo.pct = 85;
+  contextData.hr_manager.pct = 91;
+  renderContextMonitor();
+  renderOrgChart();
+  addLog("system", "Simulated context alert: ceo@85%, hr_manager@91%");
+  showToast("warn", "Context alert simulated. Check monitor.");
+}
+
+// ============================================================
+// APPROVAL QUEUE
+// ============================================================
+function renderApprovalQueue() {
+  const el = document.getElementById('approval-queue');
+  const countEl = document.getElementById('queue-count');
+  const pending = approvalQueue.filter(r => r.status === 'pending');
+  countEl.textContent = `${pending.length} pending`;
+
+  if (approvalQueue.length === 0) {
+    el.innerHTML = '<div class="queue-empty">No pending approvals.</div>';
+    return;
+  }
+
+  el.innerHTML = approvalQueue.slice().reverse().map(item => {
+    const deptClass = `dept-${item.target_dept || 'ceo'}`;
+    const statusClass = `s-${item.status}`;
+    const priorityClass = item.priority === 'high' || item.priority === 'urgent' ? 'p-high' : 'p-med';
+
+    let actions = '';
+    if (item.status === 'pending') {
+      if (item.requires_board) {
+        actions = `
+          <button class="btn btn-success btn-xs" onclick="approveItem('${item.id}')">Board Approve</button>
+          <button class="btn btn-danger btn-xs" onclick="rejectItem('${item.id}')">Reject</button>
+          <button class="btn btn-secondary btn-xs" onclick="viewItem('${item.id}')">Details</button>
+        `;
+      } else {
+        actions = `
+          <button class="btn btn-success btn-xs" onclick="approveItem('${item.id}')">Approve</button>
+          <button class="btn btn-danger btn-xs" onclick="rejectItem('${item.id}')">Reject</button>
+          <button class="btn btn-secondary btn-xs" onclick="viewItem('${item.id}')">Details</button>
+        `;
+      }
+    } else {
+      actions = `<button class="btn btn-secondary btn-xs" onclick="viewItem('${item.id}')">Details</button>`;
+    }
+
+    return `
+      <div class="queue-item" id="queue-item-${item.id}">
+        <div class="queue-item-header">
+          <div class="queue-item-title">${escHtml(item.title)}</div>
+        </div>
+        <div class="queue-item-meta">
+          <span class="priority-badge ${priorityClass}">${item.priority.toUpperCase()}</span>
+          <span class="dept-tag ${deptClass}">${item.target_dept || 'CEO'}</span>
+          <span class="status-tag ${statusClass}">${item.status}</span>
+          <span style="font-size:11px;color:var(--text-muted);font-family:var(--font);">${item.created_at}</span>
+        </div>
+        <div class="queue-item-actions">${actions}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function approveItem(id) {
+  const item = approvalQueue.find(r => r.id === id);
+  if (!item) return;
+  item.status = 'approved';
+  item.resolved_at = nowStr();
+  addLog("board", `Approved: "${item.title}"`);
+  showToast("success", `Approved: ${item.title}`);
+  renderApprovalQueue();
+
+  // if it was a dept creation, add to org chart
+  if (item.type === 'create_department' && item.data) {
+    const d = item.data;
+    const deptId = d.dept_id || d.name.toLowerCase().replace(/\s+/g,'-');
+    COC_DATA.departments[deptId] = {
+      id: deptId, name: d.name, type: 'dynamic', status: 'active',
+      manager: deptId + '_manager', level: 2, reports_to: 'ceo',
+      description: d.purpose || '', sops: [], perspectives: {}
+    };
+    contextData[deptId + '_manager'] = { pct: 10, dept: d.name, model: 'sonnet', status: 'active' };
+    renderOrgChart();
+    addLog("hr", `Department "${d.name}" created. Manager JD provisioned. Org chart updated.`);
+  }
+}
+
+function rejectItem(id) {
+  const item = approvalQueue.find(r => r.id === id);
+  if (!item) return;
+  item.status = 'rejected';
+  item.resolved_at = nowStr();
+  addLog("board", `Rejected: "${item.title}"`);
+  showToast("warn", `Rejected: ${item.title}`);
+  renderApprovalQueue();
+}
+
+function viewItem(id) {
+  const item = approvalQueue.find(r => r.id === id);
+  if (!item) return;
+  document.getElementById('view-request-title').textContent = item.title;
+  document.getElementById('view-request-body').innerHTML = `
+    <div class="detail-section">
+      <h4>Request Details</h4>
+      <div class="detail-row"><span class="key">ID</span><span class="val"><span class="inline-code">${item.id}</span></span></div>
+      <div class="detail-row"><span class="key">Type</span><span class="val">${item.type}</span></div>
+      <div class="detail-row"><span class="key">Status</span><span class="val">${item.status}</span></div>
+      <div class="detail-row"><span class="key">Priority</span><span class="val">${item.priority}</span></div>
+      <div class="detail-row"><span class="key">Created</span><span class="val">${item.created_at}</span></div>
+      ${item.resolved_at ? `<div class="detail-row"><span class="key">Resolved</span><span class="val">${item.resolved_at}</span></div>` : ''}
+    </div>
+    <div class="detail-section">
+      <h4>Payload</h4>
+      <div class="json-output">${JSON.stringify(item.data, null, 2)}</div>
+    </div>
+  `;
+  openModal('modal-view-request');
+}
+
+// ============================================================
+// FORM SUBMISSIONS
+// ============================================================
+function submitCreateDept() {
+  const name = document.getElementById('dept-name').value.trim();
+  const deptId = document.getElementById('dept-id').value.trim() || name.toLowerCase().replace(/\s+/g,'-');
+  const purpose = document.getElementById('dept-purpose').value.trim();
+  const headcount = parseInt(document.getElementById('dept-headcount').value) || 2;
+  const budget = document.getElementById('dept-budget').value;
+  const tools = document.getElementById('dept-tools').value.trim();
+  const skills = document.getElementById('dept-skills').value.trim();
+
+  if (!name || !purpose) { showToast("warn", "Department name and purpose are required."); return; }
+
+  const requiresBoard = budget !== 'none';
+
+  const payload = {
+    type: "create_department",
+    dept_id: deptId,
+    name,
+    purpose,
+    headcount,
+    budget_type: budget,
+    tools_required: tools ? tools.split(',').map(t=>t.trim()) : [],
+    skills_required: skills,
+    requested_by: "board",
+    requested_at: nowStr()
+  };
+
+  console.log("[NEXUS] Create Department Request:", JSON.stringify(payload, null, 2));
+
+  const queueItem = {
+    id: `dept-${Date.now()}`,
+    type: 'create_department',
+    title: `Create department: ${name}`,
+    target_dept: requiresBoard ? 'board' : 'ceo',
+    requires_board: requiresBoard,
+    priority: 'high',
+    status: 'pending',
+    created_at: nowStr(),
+    data: payload
+  };
+  approvalQueue.push(queueItem);
+
+  addLog("ceo", `Department creation requested: "${name}". Workflow initiated.`);
+  addLog("ceo", `Dispatching PM to investigate "${name}" department requirements.`);
+
+  // Show the 10-step workflow progress
+  showDeptWorkflow(0);
+
+  renderApprovalQueue();
+  closeModal('modal-create-dept');
+  showToast("success", requiresBoard ? `"${name}" queued for Board approval.` : `"${name}" dispatched to CEO.`);
+
+  // Simulate workflow progression
+  simulateWorkflow(name);
+}
+
+function showDeptWorkflow(activeStep) {
+  const el = document.getElementById('dept-workflow-progress');
+  const stepsEl = document.getElementById('workflow-steps');
+  el.style.display = 'block';
+
+  stepsEl.innerHTML = DEPT_CREATION_STEPS.map((step, i) => {
+    let cls = i < activeStep ? 'step-done' : i === activeStep ? 'step-active' : 'step-pending';
+    let label = i < activeStep ? '&#10003;' : (i + 1);
+    return `
+      <div class="workflow-step">
+        <div class="step-num ${cls}">${label}</div>
+        <div class="step-body">
+          <div class="step-actor">${step.actor.toUpperCase()}</div>
+          <div class="step-action">${escHtml(step.action)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function simulateWorkflow(deptName) {
+  const logMessages = [
+    ["pm",   "PM dispatched. Investigating capabilities needed for new department."],
+    ["pm",   `Project plan ready: 3 tools needed, 2 agents (manager + worker).`],
+    ["it",   "IT reviewing tool requirements from CEO."],
+    ["hr",   `HR received JD specs for ${deptName}. Generating department config.`],
+    ["hr",   `Department config written to company/departments/${deptName.toLowerCase().replace(/\s+/g,'-')}.yaml`],
+  ];
+  logMessages.forEach((entry, i) => {
+    setTimeout(() => addLog(entry[0], entry[1]), (i + 1) * 1800);
+  });
+}
+
+function submitToolRequest() {
+  const name = document.getElementById('tool-name').value.trim();
+  const dept = document.getElementById('tool-dept').value;
+  const purpose = document.getElementById('tool-purpose').value.trim();
+  const scope = document.getElementById('tool-scope').value;
+  const priority = document.getElementById('tool-priority').value;
+  const candidates = document.getElementById('tool-candidates').value.trim();
+
+  if (!name || !purpose) { showToast("warn", "Tool name and purpose are required."); return; }
+
+  const requiresBoardApproval = scope === 'system';
+
+  const payload = {
+    type: "tool_request",
+    tool_name: name,
+    requesting_dept: dept,
+    purpose,
+    scope,
+    priority,
+    candidates: candidates || null,
+    requested_by: "board",
+    requested_at: nowStr()
+  };
+
+  console.log("[NEXUS] Tool Request:", JSON.stringify(payload, null, 2));
+
+  const queueItem = {
+    id: `tool-${Date.now()}`,
+    type: 'tool_request',
+    title: `Tool request: ${name} (${scope} scope)`,
+    target_dept: requiresBoardApproval ? 'board' : 'it',
+    requires_board: requiresBoardApproval,
+    priority,
+    status: requiresBoardApproval ? 'pending' : 'progress',
+    created_at: nowStr(),
+    data: payload
+  };
+  approvalQueue.push(queueItem);
+
+  addLog("it", `Tool request received: "${name}". ${requiresBoardApproval ? 'Awaiting board approval (system-wide scope).' : 'Starting evaluation.'}`);
+
+  if (!requiresBoardApproval) {
+    setTimeout(() => {
+      const item = approvalQueue.find(r => r.id === queueItem.id);
+      if (item) { item.status = 'approved'; renderApprovalQueue(); }
+      addLog("it", `Tool "${name}" installed and configured. Spec written to equipment/${name.toLowerCase().replace(/\s+/g,'-')}.yaml`);
+      showToast("success", `Tool "${name}" installed by IT.`);
+    }, 4000);
+  }
+
+  renderApprovalQueue();
+  closeModal('modal-request-tool');
+  showToast(requiresBoardApproval ? "warn" : "info", requiresBoardApproval ? `"${name}" queued for Board approval.` : `"${name}" sent to IT for sourcing.`);
+}
+
+function submitHireRequest() {
+  const role = document.getElementById('hire-role').value.trim();
+  const dept = document.getElementById('hire-dept').value;
+  const reason = document.getElementById('hire-reason').value;
+  const skills = document.getElementById('hire-skills').value.trim();
+  const reportsTo = document.getElementById('hire-reports-to').value;
+  const notes = document.getElementById('hire-notes').value.trim();
+
+  if (!role || !skills) { showToast("warn", "Role title and required skills are required."); return; }
+
+  const agentId = `${dept}_${role.toLowerCase().replace(/\s+/g,'_')}_${String(Date.now()).slice(-4)}`;
+
+  const payload = {
+    type: "hire_employee",
+    agent_id: agentId,
+    role,
+    department: dept,
+    reason,
+    skills_required: skills,
+    reports_to: reportsTo,
+    notes: notes || null,
+    jd_path: `agents/jds/${agentId}.md`,
+    requested_by: "board",
+    requested_at: nowStr()
+  };
+
+  console.log("[NEXUS] Hire Request:", JSON.stringify(payload, null, 2));
+
+  addLog("hr", `Hire request received: "${role}" for ${dept}. Generating JD.`);
+
+  const queueItem = {
+    id: `hire-${Date.now()}`,
+    type: 'hire_employee',
+    title: `New hire: ${role} (${dept})`,
+    target_dept: 'hr',
+    requires_board: false,
+    priority: reason === 'context' ? 'high' : 'normal',
+    status: 'progress',
+    created_at: nowStr(),
+    data: payload
+  };
+  approvalQueue.push(queueItem);
+
+  // Simulate HR processing
+  setTimeout(() => {
+    const item = approvalQueue.find(r => r.id === queueItem.id);
+    if (item) { item.status = 'approved'; renderApprovalQueue(); }
+    addLog("hr", `JD generated: ${agentId}. Written to agents/jds/${agentId}.md`);
+    addLog("hr", `Agent registered in company/org.yaml. ${role} ready for assignment.`);
+    showToast("success", `${role} hired. Agent ID: ${agentId}`);
+  }, 3500);
+
+  renderApprovalQueue();
+  closeModal('modal-hire-employee');
+  showToast("info", `HR processing hire request for ${role}...`);
+}
+
+function previewContract() {
+  const contractId = document.getElementById('contract-id').value.trim() || `contract-${Date.now()}`;
+  const assignee = document.getElementById('contract-assignee').value;
+  const objective = document.getElementById('contract-objective').value.trim();
+  const priority = document.getElementById('contract-priority').value;
+  const deadline = document.getElementById('contract-deadline').value.trim();
+  const deliverables = document.getElementById('contract-deliverables').value.trim();
+
+  const payload = {
+    contract_id: contractId,
+    issued_by: "ceo",
+    assigned_to: assignee,
+    objective,
+    priority,
+    deadline: deadline || null,
+    deliverables: deliverables ? deliverables.split('\n').filter(l=>l.trim()) : [],
+    status: "issued",
+    issued_at: nowStr(),
+    path: `company/contracts/${contractId}.yaml`
+  };
+
+  document.getElementById('contract-json').textContent = JSON.stringify(payload, null, 2);
+  document.getElementById('contract-json-output').style.display = 'block';
+  console.log("[NEXUS] Contract Preview:", JSON.stringify(payload, null, 2));
+}
+
+function issueContract() {
+  const contractId = document.getElementById('contract-id').value.trim() || `contract-${Date.now()}`;
+  const assignee = document.getElementById('contract-assignee').value;
+  const objective = document.getElementById('contract-objective').value.trim();
+
+  if (!objective) { showToast("warn", "Contract objective is required."); return; }
+
+  addLog("ceo", `Contract issued: ${contractId} → ${assignee}. Objective: "${objective.substring(0,60)}${objective.length>60?'...':''}"`);
+  closeModal('modal-ceo-contract');
+  showToast("success", `Contract ${contractId} dispatched to ${assignee}.`);
+}
+
+// ============================================================
+// SOP VIEWER
+// ============================================================
+function renderSop(sopId) {
+  const el = document.getElementById('sop-display');
+  if (!sopId) { el.innerHTML = '<div class="empty-state">Select a SOP above to view it.</div>'; return; }
+  const sop = SOP_DATA[sopId];
+  if (!sop) { el.innerHTML = '<div class="empty-state">SOP not found.</div>'; return; }
+
+  el.innerHTML = `
+    <div class="sop-meta">
+      <div class="sop-meta-item"><span class="label">Owner: </span><span class="val">${sop.owner}</span></div>
+      <div class="sop-meta-item"><span class="label">Trigger: </span><span class="val">${sop.trigger_authority}</span></div>
+      <div class="sop-meta-item"><span class="label">File: </span><span class="val"><span class="inline-code">${sop.file}</span></span></div>
+    </div>
+    <div class="sop-content">${markdownToHtml(sop.content)}</div>
+  `;
+}
+
+// ============================================================
+// ACTIVITY LOG
+// ============================================================
+function addLog(actor, message) {
+  activityLog.push({ actor, message, time: nowStr() });
+  if (activityLog.length > 200) activityLog.shift();
+  renderActivityLog();
+}
+
+function renderActivityLog() {
+  const el = document.getElementById('log-list');
+  const filtered = logFilter === 'all' ? activityLog : activityLog.filter(e => e.actor === logFilter);
+  const entries = filtered.slice().reverse();
+
+  if (entries.length === 0) {
+    el.innerHTML = '<div class="empty-state">No log entries.</div>';
+    return;
+  }
+
+  const actorColors = {
+    ceo:    { bg: '#1a0a3a', color: '#a855f7' },
+    hr:     { bg: '#0c1a4a', color: '#60a5fa' },
+    it:     { bg: '#0c2a3a', color: '#06b6d4' },
+    board:  { bg: '#1a1200', color: '#eab308' },
+    pm:     { bg: '#052e16', color: '#22c55e' },
+    system: { bg: '#1a1a1a', color: '#888' }
+  };
+
+  el.innerHTML = entries.map(e => {
+    const c = actorColors[e.actor] || actorColors.system;
+    return `
+      <div class="log-entry">
+        <div class="log-time">${e.time}</div>
+        <div class="log-actor" style="background:${c.bg};color:${c.color};">${e.actor}</div>
+        <div class="log-msg">${escHtml(e.message)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterLog(actor, btn) {
+  logFilter = actor;
+  document.querySelectorAll('.log-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderActivityLog();
+}
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ============================================================
+// SIDEBAR TAB SWITCHING
+// ============================================================
+function switchSidebarTab(tabId, btnEl) {
+  ['detail','sop','log'].forEach(id => {
+    document.getElementById('tab-' + id).style.display = id === tabId ? '' : 'none';
+  });
+  document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  else {
+    const idx = ['detail','sop','log'].indexOf(tabId);
+    document.querySelectorAll('.sidebar-tab')[idx]?.classList.add('active');
+  }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(type, message) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span>${escHtml(message)}</span><span class="toast-close" onclick="this.parentElement.remove()">&#x2715;</span>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function nowStr() {
+  return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+}
+
+function escHtml(str) {
+  if (typeof str !== 'string') return String(str || '');
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Minimal markdown renderer
+function markdownToHtml(md) {
+  let html = md;
+  // Tables
+  html = html.replace(/\|(.+)\|\n\|[-| ]+\|\n((?:\|.+\|\n?)*)/g, (match, header, rows) => {
+    const ths = header.split('|').filter(c=>c.trim()).map(c=>`<th>${escHtml(c.trim())}</th>`).join('');
+    const trs = rows.trim().split('\n').map(row => {
+      const tds = row.split('|').filter(c=>c.trim()).map(c=>`<td>${escHtml(c.trim())}</td>`).join('');
+      return `<tr>${tds}</tr>`;
+    }).join('');
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+  });
+  // Headings
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Ordered list
+  html = html.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, m => `<ol>${m}</ol>`);
+  // Unordered list
+  html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+  // Paragraphs
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = `<p>${html}</p>`;
+  html = html.replace(/<p>\s*(<[huo])/g, '$1');
+  html = html.replace(/(<\/[huo][l1-6]>)\s*<\/p>/g, '$1');
+  return html;
+}
+</script>
+</body>
+</html>
