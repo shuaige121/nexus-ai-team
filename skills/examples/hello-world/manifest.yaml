@@ -1,0 +1,18 @@
+name: "hello-world"
+version: "1.0.0"
+description: "A minimal example skill for testing the Nexus skill onboarding pipeline"
+author: "nexus-team"
+category: "example"
+entry_point: "server.py"
+type: "mcp-server"
+runtime: "python"
+dependencies: []
+capabilities:
+  - "hello_greet"
+  - "hello_echo"
+compatible_departments:
+  - engineering
+  - dept-gateway
+auto_assign_to:
+  - devops
+  - backend_dev
