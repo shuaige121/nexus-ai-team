@@ -50,6 +50,13 @@ async def test_work_order_creation():
 async def test_queue_enqueue_consume():
     """Test Redis Streams queue enqueue and consume."""
     pytest.importorskip("redis")
+    import redis.asyncio as aioredis
+    try:
+        r = aioredis.from_url("redis://localhost:6379/15")
+        await r.ping()
+        await r.aclose()
+    except Exception:
+        pytest.skip("Redis not available")
 
     from pipeline.queue import QueueManager
 
@@ -93,6 +100,14 @@ async def test_dispatcher_process_work_order(mock_router):
     """Test that Dispatcher processes work orders end-to-end."""
     pytest.importorskip("redis")
     pytest.importorskip("psycopg")
+
+    import redis.asyncio as aioredis
+    try:
+        r = aioredis.from_url("redis://localhost:6379/15")
+        await r.ping()
+        await r.aclose()
+    except Exception:
+        pytest.skip("Redis not available")
 
     import os
 
