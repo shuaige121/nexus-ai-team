@@ -7,6 +7,13 @@ agents:
     model: opus
     created: 2026-02-16
     status: active
+  exec_assistant:
+    role: exec_assistant
+    department: executive
+    reports_to: ceo
+    model: sonnet
+    created: 2026-02-19
+    status: active
   hr:
     role: hr
     department: executive
@@ -14,12 +21,89 @@ agents:
     model: sonnet
     created: 2026-02-16
     status: active
+  recruiter:
+    role: recruiter
+    department: hr
+    reports_to: hr_lead
+    model: haiku
+    created: 2026-02-19
+    status: active
   it-support:
     role: it-support
     department: executive
     reports_to: hr
     model: sonnet
     created: 2026-02-16
+    status: active
+  eng_manager:
+    role: eng_manager
+    department: engineering
+    reports_to: ceo
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  frontend_dev:
+    role: frontend_dev
+    department: engineering
+    reports_to: eng_manager
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  backend_dev:
+    role: backend_dev
+    department: engineering
+    reports_to: eng_manager
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  devops:
+    role: devops
+    department: engineering
+    reports_to: eng_manager
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  qa_lead:
+    role: qa_lead
+    department: qa
+    reports_to: ceo
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  qa_tester:
+    role: qa_tester
+    department: qa
+    reports_to: qa_lead
+    model: haiku
+    created: 2026-02-19
+    status: active
+  it_admin:
+    role: it_admin
+    department: it
+    reports_to: hr_lead
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  sec_analyst:
+    role: sec_analyst
+    department: it
+    reports_to: it_admin
+    model: haiku
+    created: 2026-02-19
+    status: active
+  pm:
+    role: pm
+    department: product
+    reports_to: ceo
+    model: sonnet
+    created: 2026-02-19
+    status: active
+  designer:
+    role: designer
+    department: product
+    reports_to: pm
+    model: haiku
+    created: 2026-02-19
     status: active
   dept-gw-manager:
     role: manager

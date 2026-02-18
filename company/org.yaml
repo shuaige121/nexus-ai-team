@@ -1,31 +1,86 @@
 company:
   name: NEXUS Corp
   board: user
+
 departments:
-- id: executive
-  name: 执行办公室
-  positions:
-  - ceo
-- id: hr
-  name: 人力资源部
-  positions:
-  - hr_lead
+  - id: executive
+    name: 执行办公室
+    positions:
+      - ceo
+      - exec_assistant
+
+  - id: hr
+    name: 人力资源部
+    positions:
+      - hr_lead
+      - recruiter
+
+  - id: engineering
+    name: 工程部
+    positions:
+      - eng_manager
+      - frontend_dev
+      - backend_dev
+      - devops
+
+  - id: qa
+    name: 质量保证部
+    positions:
+      - qa_lead
+      - qa_tester
+
+  - id: it
+    name: IT 支持部
+    positions:
+      - it_admin
+      - sec_analyst
+
+  - id: product
+    name: 产品部
+    positions:
+      - pm
+      - designer
+
 chain_of_command:
   ceo:
     reports_to: board
-    can_command:
-    - hr_lead
-    authority:
-    - create_department
-    - remove_department
-    - approve_hiring
-    - approve_firing
-  hr_lead:
+    can_command: [exec_assistant, hr_lead, eng_manager, qa_lead, it_admin, pm]
+  exec_assistant:
     reports_to: ceo
     can_command: []
-    authority:
-    - create_position
-    - create_employee
-    - assign_employee
-    - remove_employee
-    - remove_position
+  hr_lead:
+    reports_to: ceo
+    can_command: [recruiter, it_admin]
+  recruiter:
+    reports_to: hr_lead
+    can_command: []
+  eng_manager:
+    reports_to: ceo
+    can_command: [frontend_dev, backend_dev, devops]
+  frontend_dev:
+    reports_to: eng_manager
+    can_command: []
+  backend_dev:
+    reports_to: eng_manager
+    can_command: []
+  devops:
+    reports_to: eng_manager
+    can_command: []
+  qa_lead:
+    reports_to: ceo
+    can_command: [qa_tester]
+  qa_tester:
+    reports_to: qa_lead
+    can_command: []
+  it_admin:
+    reports_to: hr_lead
+    can_command: [sec_analyst]
+  sec_analyst:
+    reports_to: it_admin
+    can_command: []
+  pm:
+    reports_to: ceo
+    can_command: [designer]
+  designer:
+    reports_to: pm
+    can_command: []
