@@ -1,0 +1,51 @@
+backup:
+  description: Project backup to specified directory
+  enabled: true
+  last_run: null
+  last_status: null
+  name: backup
+  params:
+    backup_dir: /home/leonard/backups/nexus-ai-team
+    keep_days: 7
+  registered_at: '2026-02-18T00:00:00'
+  run_count: 0
+  schedule: 0 3 * * *
+  script_path: backup.py
+cost_report:
+  description: Daily token usage and cost report
+  enabled: true
+  last_run: null
+  last_status: null
+  name: cost_report
+  params:
+    period_days: 1
+    report_dir: reports/cost
+  registered_at: '2026-02-18T00:00:00'
+  run_count: 0
+  schedule: 0 8 * * *
+  script_path: cost_report.py
+health_check:
+  description: System health monitoring - CPU, RAM, Disk, GPU
+  enabled: true
+  last_run: '2026-02-19T00:58:29.867179'
+  last_status: success
+  name: health_check
+  params: {}
+  registered_at: '2026-02-18T00:00:00'
+  run_count: 4
+  schedule: '*/30 * * * *'
+  script_path: health_check.py
+log_rotate:
+  description: Log file rotation and cleanup
+  enabled: true
+  last_run: null
+  last_status: null
+  name: log_rotate
+  params:
+    log_dir: logs
+    max_age_days: 30
+    max_size_mb: 100
+  registered_at: '2026-02-18T00:00:00'
+  run_count: 0
+  schedule: 0 2 * * *
+  script_path: log_rotate.py
