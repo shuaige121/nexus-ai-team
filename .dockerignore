@@ -1,0 +1,17 @@
+.git
+__pycache__
+*.pyc
+node_modules
+.venv
+venv
+*.db
+logs/
+reports/
+.env
+*.egg-info
+dist/
+build/
+.pytest_cache
+.ruff_cache
+htmlcov
+.coverage

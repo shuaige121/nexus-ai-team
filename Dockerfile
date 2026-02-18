@@ -40,12 +40,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
+# Copy dependency files and source code before install
 COPY pyproject.toml ./
+COPY gateway ./gateway
+COPY nexus_v1 ./nexus_v1
+COPY pipeline ./pipeline
+COPY db ./db
+COPY agents ./agents
+COPY interfaces ./interfaces
+COPY equipment ./equipment
+COPY company ./company
+COPY agentoffice ./agentoffice
+COPY qa ./qa
+COPY heartbeat ./heartbeat
+COPY dashboard ./dashboard
 
-# Install Python dependencies
+# Install Python dependencies (non-editable)
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -e .
+    pip install --no-cache-dir .
 
 # ── Stage 3: Production ───────────────────────────────────────────────────────
 FROM base AS production

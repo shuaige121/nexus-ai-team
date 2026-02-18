@@ -19,6 +19,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$PROJECT_ROOT/logs"
+PID_FILE="/tmp/nexus-gateway.pid"
 
 # Colours (safe for non-tty)
 if [ -t 1 ]; then
@@ -35,6 +36,36 @@ info()  { echo -e "${CYAN}[INFO]${RESET}  $*"; }
 ok()    { echo -e "${GREEN}[OK]${RESET}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
 fail()  { echo -e "${RED}[FAIL]${RESET}  $*"; }
+
+# -- Graceful shutdown handler -------------------------------------------------
+
+cleanup() {
+    info "Received shutdown signal, cleaning up ..."
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat "$PID_FILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            info "Stopping gateway (PID $PID) ..."
+            kill -TERM "$PID" 2>/dev/null || true
+            # Wait up to 10 seconds for graceful exit
+            for i in $(seq 1 10); do
+                if ! kill -0 "$PID" 2>/dev/null; then
+                    ok "Gateway stopped gracefully"
+                    break
+                fi
+                sleep 1
+                if [ "$i" -eq 10 ]; then
+                    warn "Gateway did not exit gracefully, sending SIGKILL"
+                    kill -9 "$PID" 2>/dev/null || true
+                fi
+            done
+        fi
+        rm -f "$PID_FILE"
+    fi
+    ok "Cleanup complete"
+    exit 0
+}
+
+trap cleanup SIGTERM SIGINT
 
 # -- Parse flags ---------------------------------------------------------------
 
@@ -97,7 +128,15 @@ info "Starting NEXUS Gateway ..."
 cd "$PROJECT_ROOT"
 
 # Kill any lingering gateway process
-if pgrep -f "uvicorn gateway.main:app" > /dev/null 2>&1; then
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        warn "Gateway already running (PID $OLD_PID) -- restarting ..."
+        kill -TERM "$OLD_PID" 2>/dev/null || true
+        sleep 2
+    fi
+    rm -f "$PID_FILE"
+elif pgrep -f "uvicorn gateway.main:app" > /dev/null 2>&1; then
     warn "Gateway already running -- restarting ..."
     pkill -f "uvicorn gateway.main:app" || true
     sleep 2
@@ -109,7 +148,8 @@ nohup python -m uvicorn gateway.main:app \
     > "$LOG_DIR/gateway.log" 2>&1 &
 
 GATEWAY_PID=$!
-info "Gateway PID: $GATEWAY_PID"
+echo "$GATEWAY_PID" > "$PID_FILE"
+info "Gateway PID: $GATEWAY_PID (written to $PID_FILE)"
 
 # Wait for health endpoint (up to 15 s)
 for i in $(seq 1 15); do
@@ -170,5 +210,6 @@ info "Equipment (enabled): $EQUIP_COUNT"
 echo ""
 ok "NEXUS system startup complete."
 echo "   Logs dir:  $LOG_DIR"
+echo "   PID file:  $PID_FILE"
 echo "   API docs:  http://localhost:8000/docs"
 echo ""
