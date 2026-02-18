@@ -175,7 +175,7 @@ Your answer (PASS or FAIL only):"""
 
             return passed
 
-        except Exception as exc:
+        except Exception:
             logger.exception(f"Self-test error for {work_order.id}")
             # On error, be conservative and fail the test
             return False

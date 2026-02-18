@@ -2,18 +2,17 @@
 Equipment Manager - Manages automation scripts (equipment)
 """
 
-import os
-import sys
-import yaml
+import contextlib
 import importlib.util
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
 
-from croniter import croniter
+import yaml
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from croniter import croniter
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class EquipmentManager:
     Equipment are scripts that don't need LLM to complete repetitive tasks.
     """
 
-    def __init__(self, registry_path: Optional[str] = None) -> None:
+    def __init__(self, registry_path: str | None = None) -> None:
         """
         Initialize Equipment Manager.
 
@@ -34,7 +33,7 @@ class EquipmentManager:
         self.base_dir: Path = Path(__file__).parent
         self.registry_path: Path = Path(registry_path) if registry_path else self.base_dir / "registry.yaml"
         self.scripts_dir: Path = self.base_dir / "scripts"
-        self.registry: Dict[str, Dict[str, Any]] = {}
+        self.registry: dict[str, dict[str, Any]] = {}
         self.scheduler: BackgroundScheduler = BackgroundScheduler()
         self.scheduler.start()
         self._load_registry()
@@ -46,7 +45,7 @@ class EquipmentManager:
             self.registry = {}
             return
         try:
-            with open(self.registry_path, "r", encoding="utf-8") as f:
+            with open(self.registry_path, encoding="utf-8") as f:
                 self.registry = yaml.safe_load(f) or {}
             logger.info(f"Loaded {len(self.registry)} equipment from registry")
         except Exception as e:
@@ -68,10 +67,10 @@ class EquipmentManager:
         name: str,
         script_path: str,
         description: str = "",
-        schedule: Optional[str] = None,
+        schedule: str | None = None,
         enabled: bool = True,
-        params: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Register a new equipment (script).
 
@@ -86,7 +85,7 @@ class EquipmentManager:
         Returns:
             Equipment configuration
         """
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "name": name,
             "script_path": script_path,
             "description": description,
@@ -120,15 +119,13 @@ class EquipmentManager:
         if name not in self.registry:
             return False
         del self.registry[name]
-        try:
+        with contextlib.suppress(Exception):
             self.scheduler.remove_job(f"equipment_{name}")
-        except Exception:
-            pass
         self._save_registry()
         logger.info(f"Unregistered equipment: {name}")
         return True
 
-    def run_equipment(self, name: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def run_equipment(self, name: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Execute an equipment script.
 
@@ -219,7 +216,7 @@ class EquipmentManager:
         self._schedule_equipment(name, cron_expr)
         return True
 
-    def list_equipment(self, enabled_only: bool = False) -> List[Dict[str, Any]]:
+    def list_equipment(self, enabled_only: bool = False) -> list[dict[str, Any]]:
         """
         List all registered equipment.
 
@@ -233,7 +230,7 @@ class EquipmentManager:
             return [eq for eq in self.registry.values() if eq.get("enabled")]
         return list(self.registry.values())
 
-    def get_equipment(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_equipment(self, name: str) -> dict[str, Any] | None:
         """
         Get equipment configuration by name.
 
@@ -278,14 +275,12 @@ class EquipmentManager:
             return False
         self.registry[name]["enabled"] = False
         self._save_registry()
-        try:
+        with contextlib.suppress(Exception):
             self.scheduler.remove_job(f"equipment_{name}")
-        except Exception:
-            pass
         logger.info(f"Disabled equipment: {name}")
         return True
 
-    def get_scheduled_jobs(self) -> List[Dict[str, Any]]:
+    def get_scheduled_jobs(self) -> list[dict[str, Any]]:
         """
         Get all scheduled equipment jobs.
 

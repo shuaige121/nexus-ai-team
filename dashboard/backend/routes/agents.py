@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
 from dashboard.backend.mock_data import MOCK_AGENTS, MOCK_ORG
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -105,7 +106,7 @@ async def delete_agent(agent_id: str):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     if agent_id in ("ceo", "hr_lead"):
         raise HTTPException(status_code=403, detail="不能删除核心Agent")
-    agent = MOCK_AGENTS.pop(agent_id)
+    MOCK_AGENTS.pop(agent_id)
     for dept in MOCK_ORG["departments"]:
         if agent_id in dept["agents"]:
             dept["agents"].remove(agent_id)

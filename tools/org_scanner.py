@@ -10,13 +10,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -374,7 +373,7 @@ class OrgScanner:
 
     def _build_snapshot(self) -> dict[str, Any]:
         """Build the final snapshot dictionary."""
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        now = datetime.now(UTC).isoformat(timespec="seconds")
         departments: dict[str, Any] = {}
         for dept_id, dept in sorted(self.departments.items()):
             departments[dept_id] = {

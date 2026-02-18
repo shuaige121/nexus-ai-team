@@ -3,10 +3,8 @@ Backup Equipment
 Backs up project to specified directory
 """
 
-import os
-import shutil
-import tarfile
 import logging
+import tarfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -16,7 +14,7 @@ logger = logging.getLogger(__name__)
 def create_backup(
     source_dir: str,
     backup_path: str,
-    exclude_patterns: list[str] = [],
+    exclude_patterns: list[str] = None,
 ) -> float:
     """
     Create a tar.gz backup of source directory.
@@ -29,6 +27,8 @@ def create_backup(
     Returns:
         Backup file size in MB
     """
+    if exclude_patterns is None:
+        exclude_patterns = []
     def exclude_filter(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
         """Filter function for tarfile."""
         for pattern in exclude_patterns:
@@ -54,7 +54,7 @@ def cleanup_old_backups(backup_dir: Path, keep_days: int = 7) -> list[dict]:
         List of deleted backups
     """
     deleted: list[dict] = []
-    cutoff = datetime.now() - timedelta(days=keep_days)
+    datetime.now() - timedelta(days=keep_days)
 
     for backup_file in backup_dir.glob("nexus-ai-team-*.tar.gz"):
         try:

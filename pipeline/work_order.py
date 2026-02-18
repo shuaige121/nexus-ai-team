@@ -9,9 +9,10 @@ For the legacy **sync** client used by CLI scripts, see ``db/client.py``.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Any, AsyncIterator
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -85,23 +86,22 @@ class WorkOrderDB:
             )
             RETURNING id, intent, difficulty, owner, status, created_at
         """
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    query,
-                    (
-                        wo_id,
-                        intent,
-                        difficulty,
-                        owner,
-                        compressed_context,
-                        relevant_files,
-                        qa_requirements,
-                        deadline,
-                    ),
-                )
-                result = await cur.fetchone()
-                await conn.commit()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                query,
+                (
+                    wo_id,
+                    intent,
+                    difficulty,
+                    owner,
+                    compressed_context,
+                    relevant_files,
+                    qa_requirements,
+                    deadline,
+                ),
+            )
+            result = await cur.fetchone()
+            await conn.commit()
 
         logger.info("Created work order: %s (owner=%s, difficulty=%s)", wo_id, owner, difficulty)
         return result or {}
@@ -109,10 +109,9 @@ class WorkOrderDB:
     async def get_work_order(self, wo_id: str) -> dict[str, Any] | None:
         """Retrieve a work order by ID."""
         query = "SELECT * FROM work_orders WHERE id = %s"
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, (wo_id,))
-                return await cur.fetchone()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(query, (wo_id,))
+            return await cur.fetchone()
 
     async def update_status(
         self,
@@ -145,10 +144,9 @@ class WorkOrderDB:
             """
             params = (status, error, wo_id)
 
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                await conn.commit()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(query, params)
+            await conn.commit()
 
         logger.info("Updated work order %s -> %s", wo_id, status)
 
@@ -167,13 +165,12 @@ class WorkOrderDB:
             INSERT INTO audit_logs (work_order_id, session_id, actor, action, status, details)
             VALUES (%s, %s, %s, %s, %s, %s)
         """
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    query,
-                    (work_order_id, session_id, actor, action, status, Jsonb(details or {})),
-                )
-                await conn.commit()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                query,
+                (work_order_id, session_id, actor, action, status, Jsonb(details or {})),
+            )
+            await conn.commit()
 
         logger.debug("Audit log: %s %s -> %s", actor, action, status)
 
@@ -200,26 +197,25 @@ class WorkOrderDB:
                 success, latency_ms, prompt_tokens, completion_tokens, cost_usd, metadata
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    query,
-                    (
-                        work_order_id,
-                        session_id,
-                        agent_name,
-                        role,
-                        model,
-                        provider,
-                        success,
-                        latency_ms,
-                        prompt_tokens,
-                        completion_tokens,
-                        cost_usd,
-                        Jsonb(metadata or {}),
-                    ),
-                )
-                await conn.commit()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                query,
+                (
+                    work_order_id,
+                    session_id,
+                    agent_name,
+                    role,
+                    model,
+                    provider,
+                    success,
+                    latency_ms,
+                    prompt_tokens,
+                    completion_tokens,
+                    cost_usd,
+                    Jsonb(metadata or {}),
+                ),
+            )
+            await conn.commit()
 
         logger.debug("Agent metric: %s (role=%s, model=%s)", agent_name, role, model)
 
@@ -245,16 +241,15 @@ class WorkOrderDB:
             FROM agent_metrics
             WHERE {where_clause}
         """
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query)
-                row = await cur.fetchone()
-                return {
-                    "prompt_tokens": int(row["prompt_tokens"] or 0),
-                    "completion_tokens": int(row["completion_tokens"] or 0),
-                    "total_tokens": int(row["total_tokens"] or 0),
-                    "total_cost": float(row["total_cost"] or 0.0),
-                }
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(query)
+            row = await cur.fetchone()
+            return {
+                "prompt_tokens": int(row["prompt_tokens"] or 0),
+                "completion_tokens": int(row["completion_tokens"] or 0),
+                "total_tokens": int(row["total_tokens"] or 0),
+                "total_cost": float(row["total_cost"] or 0.0),
+            }
 
     async def get_recent_audit_logs(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent audit log entries."""
@@ -264,10 +259,9 @@ class WorkOrderDB:
             ORDER BY created_at DESC
             LIMIT %s
         """
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, (limit,))
-                return await cur.fetchall()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(query, (limit,))
+            return await cur.fetchall()
 
     async def get_system_status(self) -> dict[str, Any]:
         """Get system health metrics."""
@@ -280,10 +274,9 @@ class WorkOrderDB:
             FROM work_orders
             WHERE created_at >= CURRENT_DATE - INTERVAL '1 day'
         """
-        async with self.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query_wo)
-                wo_stats = await cur.fetchone()
+        async with self.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(query_wo)
+            wo_stats = await cur.fetchone()
 
         return {
             "work_orders": {

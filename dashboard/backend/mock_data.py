@@ -1,8 +1,7 @@
 """Mock data layer for the dashboard. Simulates AgentOffice data."""
 
 import random
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 # --- Organization ---
 
@@ -245,7 +244,7 @@ PRIORITIES = ["high", "medium", "low"]
 STATUSES = ["pending", "executing", "completed", "failed", "archived"]
 
 def _ts(days_ago: int = 0, hours_ago: int = 0) -> str:
-    dt = datetime.now(timezone.utc) - timedelta(days=days_ago, hours=hours_ago)
+    dt = datetime.now(UTC) - timedelta(days=days_ago, hours=hours_ago)
     return dt.isoformat()
 
 MOCK_CONTRACTS = [
@@ -413,7 +412,7 @@ def generate_token_history(days: int = 7):
     data = []
     agents = list(MOCK_AGENTS.keys())
     for day_offset in range(days, -1, -1):
-        date = (datetime.now(timezone.utc) - timedelta(days=day_offset)).strftime("%Y-%m-%d")
+        date = (datetime.now(UTC) - timedelta(days=day_offset)).strftime("%Y-%m-%d")
         for agent_id in agents:
             agent = MOCK_AGENTS[agent_id]
             # Higher-level agents use more tokens

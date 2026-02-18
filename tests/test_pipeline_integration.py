@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -96,6 +95,7 @@ async def test_dispatcher_process_work_order(mock_router):
     pytest.importorskip("psycopg")
 
     import os
+
     from pipeline import Dispatcher, QueueManager, WorkOrderDB
 
     # Use test databases - read from environment or skip test if not configured
@@ -112,18 +112,17 @@ async def test_dispatcher_process_work_order(mock_router):
         # Create a test work order (clean up from previous runs)
         wo_id = "WO-TEST-DISPATCHER-001"
         test_session_id = "test-session-dispatcher"
-        async with db.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM audit_logs WHERE work_order_id = %s", (wo_id,))
-                await cur.execute("DELETE FROM agent_metrics WHERE work_order_id = %s", (wo_id,))
-                await cur.execute("DELETE FROM work_orders WHERE id = %s", (wo_id,))
-                # Ensure test session exists for FK constraints
-                await cur.execute(
-                    "INSERT INTO sessions (id, user_id, channel, status) "
-                    "VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
-                    (test_session_id, "test-user", "api", "active"),
-                )
-                await conn.commit()
+        async with db.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute("DELETE FROM audit_logs WHERE work_order_id = %s", (wo_id,))
+            await cur.execute("DELETE FROM agent_metrics WHERE work_order_id = %s", (wo_id,))
+            await cur.execute("DELETE FROM work_orders WHERE id = %s", (wo_id,))
+            # Ensure test session exists for FK constraints
+            await cur.execute(
+                "INSERT INTO sessions (id, user_id, channel, status) "
+                "VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                (test_session_id, "test-user", "api", "active"),
+            )
+            await conn.commit()
         await db.create_work_order(
             wo_id=wo_id,
             intent="test_intent",

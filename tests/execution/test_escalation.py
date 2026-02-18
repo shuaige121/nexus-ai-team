@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from agents.execution.escalation import EscalationManager, EscalationResult
+from agents.execution.escalation import EscalationManager
 from agents.execution.executor import ExecutionAgent, ExecutionResult
 from nexus_v1.admin import WorkOrder
 

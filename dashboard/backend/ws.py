@@ -1,9 +1,9 @@
 """WebSocket handler for real-time dashboard updates."""
 
 import json
-import asyncio
-from fastapi import WebSocket, WebSocketDisconnect
 from typing import Any
+
+from fastapi import WebSocket, WebSocketDisconnect
 
 
 class DashboardWSManager:

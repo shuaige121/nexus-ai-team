@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Security audit for SQL injection and validation bypass vulnerabilities."""
 
-import ast
 import re
 import sys
 from pathlib import Path
+
 
 def check_sql_injection(file_path: Path) -> list[str]:
     """Check for potential SQL injection vulnerabilities."""
@@ -37,9 +37,8 @@ def check_sql_injection(file_path: Path) -> list[str]:
     )
 
     # If SQL queries exist but no parameterization found, investigate further
-    if has_sql and not has_parameterized:
-        # Allow if only using %s or ? placeholders
-        if not (re.search(r'%s', content) or re.search(r'\?', content)):
+    if has_sql and not has_parameterized and not (re.search(r'%s', content) or re.search(r'\?', content)):
+        # No parameterization and no %s/? placeholders found
             issues.append(f"{file_path}: SQL queries without parameterization detected")
 
     return issues
@@ -50,15 +49,11 @@ def check_validation_bypass(file_path: Path) -> list[str]:
     content = file_path.read_text(encoding="utf-8")
 
     # Check for disabled security checks
-    if re.search(r'security.*enabled.*false', content, re.IGNORECASE):
-        # This is OK in spec files
-        if file_path.suffix != '.json':
-            issues.append(f"{file_path}: Security checks disabled")
+    if re.search(r'security.*enabled.*false', content, re.IGNORECASE) and file_path.suffix != '.json':
+        issues.append(f"{file_path}: Security checks disabled")
 
     # Check for weak or missing authentication
-    if 'def ' in content and 'auth' in content.lower():
-        # Look for functions that bypass auth
-        if re.search(r'(return\s+True|pass).*#.*skip.*auth', content, re.IGNORECASE):
+    if 'def ' in content and 'auth' in content.lower() and re.search(r'(return\s+True|pass).*#.*skip.*auth', content, re.IGNORECASE):
             issues.append(f"{file_path}: Authentication bypass detected")
 
     # Check for eval/exec usage (dangerous)

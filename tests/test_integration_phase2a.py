@@ -1,13 +1,12 @@
 """Integration test for Phase 2A - Complete execution flow."""
 
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
-from agents.execution.escalation import EscalationManager, EscalationResult
+from agents.execution.escalation import EscalationManager
 from agents.execution.executor import ExecutionAgent, ExecutionResult
 from agents.execution.pipeline import ExecutionPipeline
 from nexus_v1.admin import AdminAgent, WorkOrder
-from nexus_v1.model_router import ModelRouter, RouterResponse
 
 
 class TestPhase2AIntegration(unittest.TestCase):

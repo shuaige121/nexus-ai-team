@@ -4,10 +4,10 @@ Final UAT Test Suite for Phase 3C Equipment
 Runs all tests and generates comprehensive report
 """
 
-import sys
 import subprocess
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -57,7 +57,7 @@ class UATRunner:
             return success
 
         except subprocess.TimeoutExpired:
-            print(f"\n✗ 测试超时 (60秒)")
+            print("\n✗ 测试超时 (60秒)")
             self.results.append({
                 'name': test_name,
                 'script': test_script,
@@ -89,8 +89,8 @@ class UATRunner:
 
         print(f"\n测试时间: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"测试耗时: {duration:.2f} 秒")
-        print(f"\n分支: phase3c-equipment")
-        print(f"仓库: /home/leonard/Desktop/nexus-ai-team")
+        print("\n分支: phase3c-equipment")
+        print("仓库: /home/leonard/Desktop/nexus-ai-team")
 
         # Summary
         total = len(self.results)

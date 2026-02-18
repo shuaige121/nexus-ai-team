@@ -20,11 +20,12 @@ import json
 import logging
 import os
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 try:
     import psycopg2
@@ -120,9 +121,8 @@ class DatabaseClient:
                     self.postgres_url,
                 )
                 # Test connection
-                with self._get_postgres_conn() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute("SELECT 1")
+                with self._get_postgres_conn() as conn, conn.cursor() as cur:
+                    cur.execute("SELECT 1")
                 self._use_postgres = True
                 logger.info("Connected to PostgreSQL database")
                 return
@@ -258,10 +258,9 @@ class DatabaseClient:
 
     def _log_work_order_postgres(self, work_order: WorkOrderLog) -> None:
         """Log work order to PostgreSQL."""
-        with self._get_postgres_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with self._get_postgres_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     INSERT INTO work_orders (
                         id, intent, difficulty, owner, compressed_context,
                         relevant_files, qa_requirements, status, retry_count,
@@ -274,21 +273,21 @@ class DatabaseClient:
                         last_error = EXCLUDED.last_error,
                         updated_at = NOW()
                     """,
-                    (
-                        work_order.id,
-                        work_order.intent,
-                        work_order.difficulty,
-                        work_order.owner,
-                        work_order.compressed_context,
-                        work_order.relevant_files,
-                        work_order.qa_requirements,
-                        work_order.status,
-                        work_order.retry_count,
-                        work_order.deadline,
-                        work_order.completed_at,
-                        work_order.last_error,
-                    ),
-                )
+                (
+                    work_order.id,
+                    work_order.intent,
+                    work_order.difficulty,
+                    work_order.owner,
+                    work_order.compressed_context,
+                    work_order.relevant_files,
+                    work_order.qa_requirements,
+                    work_order.status,
+                    work_order.retry_count,
+                    work_order.deadline,
+                    work_order.completed_at,
+                    work_order.last_error,
+                ),
+            )
 
     def _log_work_order_sqlite(self, work_order: WorkOrderLog) -> None:
         """Log work order to SQLite."""
@@ -326,31 +325,30 @@ class DatabaseClient:
 
     def _log_agent_metric_postgres(self, metric: AgentMetric) -> None:
         """Log agent metric to PostgreSQL."""
-        with self._get_postgres_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with self._get_postgres_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     INSERT INTO agent_metrics (
                         work_order_id, session_id, agent_name, role, model,
                         provider, success, latency_ms, prompt_tokens,
                         completion_tokens, cost_usd, metadata
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (
-                        metric.work_order_id,
-                        metric.session_id,
-                        metric.agent_name,
-                        metric.role,
-                        metric.model,
-                        metric.provider,
-                        metric.success,
-                        metric.latency_ms,
-                        metric.prompt_tokens,
-                        metric.completion_tokens,
-                        metric.cost_usd,
-                        json.dumps(metric.metadata or {}),
-                    ),
-                )
+                (
+                    metric.work_order_id,
+                    metric.session_id,
+                    metric.agent_name,
+                    metric.role,
+                    metric.model,
+                    metric.provider,
+                    metric.success,
+                    metric.latency_ms,
+                    metric.prompt_tokens,
+                    metric.completion_tokens,
+                    metric.cost_usd,
+                    json.dumps(metric.metadata or {}),
+                ),
+            )
 
     def _log_agent_metric_sqlite(self, metric: AgentMetric) -> None:
         """Log agent metric to SQLite."""
@@ -388,23 +386,22 @@ class DatabaseClient:
 
     def _log_audit_postgres(self, audit: AuditLog) -> None:
         """Log audit entry to PostgreSQL."""
-        with self._get_postgres_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with self._get_postgres_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     INSERT INTO audit_logs (
                         work_order_id, session_id, actor, action, status, details
                     ) VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (
-                        audit.work_order_id,
-                        audit.session_id,
-                        audit.actor,
-                        audit.action,
-                        audit.status,
-                        json.dumps(audit.details or {}),
-                    ),
-                )
+                (
+                    audit.work_order_id,
+                    audit.session_id,
+                    audit.actor,
+                    audit.action,
+                    audit.status,
+                    json.dumps(audit.details or {}),
+                ),
+            )
 
     def _log_audit_sqlite(self, audit: AuditLog) -> None:
         """Log audit entry to SQLite."""
@@ -434,10 +431,9 @@ class DatabaseClient:
 
     def _log_session_postgres(self, session: SessionLog) -> None:
         """Log session to PostgreSQL."""
-        with self._get_postgres_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with self._get_postgres_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     INSERT INTO sessions (
                         id, user_id, channel, status, title, context
                     ) VALUES (%s, %s, %s, %s, %s, %s)
@@ -448,15 +444,15 @@ class DatabaseClient:
                         last_activity_at = NOW(),
                         updated_at = NOW()
                     """,
-                    (
-                        session.id,
-                        session.user_id,
-                        session.channel,
-                        session.status,
-                        session.title,
-                        json.dumps(session.context or {}),
-                    ),
-                )
+                (
+                    session.id,
+                    session.user_id,
+                    session.channel,
+                    session.status,
+                    session.title,
+                    json.dumps(session.context or {}),
+                ),
+            )
 
     def _log_session_sqlite(self, session: SessionLog) -> None:
         """Log session to SQLite."""
@@ -519,18 +515,17 @@ class DatabaseClient:
         where_clause = " AND ".join(conditions) if conditions else "TRUE"
         params.append(limit)
 
-        with self._get_postgres_conn() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    f"""
-                    SELECT * FROM agent_metrics
-                    WHERE {where_clause}
-                    ORDER BY created_at DESC
-                    LIMIT %s
-                    """,
-                    params,
-                )
-                return [dict(row) for row in cur.fetchall()]
+        with self._get_postgres_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT * FROM agent_metrics
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                params,
+            )
+            return [dict(row) for row in cur.fetchall()]
 
     def _query_metrics_sqlite(
         self,

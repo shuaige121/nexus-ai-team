@@ -3,12 +3,11 @@ Cost Report Equipment
 Generates daily token usage and cost reports
 """
 
-import os
 import json
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +207,8 @@ if __name__ == "__main__":
     print(f"Summary: {result['summary']}")
     print(f"\nTotal Cost: ${result.get('total_cost', 0):.4f}")
     for agent, data in result.get("by_agent", {}).items():
-        print(f"\nCost by Agent:")
+        print("\nCost by Agent:")
         print(f"  {agent}: ${data['cost']:.4f} ({data['requests']} requests)")
     for model, data in result.get("by_model", {}).items():
-        print(f"\nCost by Model:")
+        print("\nCost by Model:")
         print(f"  {model}: ${data['cost']:.4f} ({data['requests']} requests)")

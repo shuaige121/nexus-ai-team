@@ -10,8 +10,8 @@ Run with:
 
 from __future__ import annotations
 
-import json
 import importlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -222,7 +222,7 @@ class TestSkillRegistry:
         if isinstance(data, dict) and "skills" in data:
             skills = data["skills"]
             assert isinstance(skills, dict), "skills should be a dict"
-            for name, meta in skills.items():
+            for name, _meta in skills.items():
                 assert isinstance(name, str), f"Skill name should be str, got {type(name)}"
 
     def test_skill_registry_importable(self) -> None:
@@ -451,7 +451,7 @@ class TestRaceConfigs:
                 )
 
         assert not errors, (
-            f"Invalid race.yaml configs:\n" + "\n".join(f"  - {e}" for e in errors)
+            "Invalid race.yaml configs:\n" + "\n".join(f"  - {e}" for e in errors)
         )
 
     def test_race_configs_have_provider(self, project_root: Path) -> None:
@@ -490,7 +490,7 @@ class TestAgentRouterLifecycle:
 
         router = AgentRouter()
         active = router.get_active_agents()
-        for aid, info in active.items():
+        for _aid, info in active.items():
             assert info["status"] == "active"
 
     def test_route_to_department_direct(self) -> None:

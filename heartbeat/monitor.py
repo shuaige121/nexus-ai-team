@@ -11,10 +11,10 @@ Periodically checks:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
@@ -154,10 +154,8 @@ class HealthMonitor:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("Health monitor stopped")
 
     async def _monitor_loop(self):
@@ -227,8 +225,7 @@ class HealthMonitor:
     async def _check_gateway(self) -> HealthStatus:
         """Check if Gateway is responsive."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.gateway_url}/health", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with aiohttp.ClientSession() as session, session.get(f"{self.gateway_url}/health", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         return HealthStatus(
@@ -243,7 +240,7 @@ class HealthMonitor:
                             status="degraded",
                             message=f"Gateway returned status {resp.status}",
                         )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return HealthStatus(
                 component="gateway",
                 status="critical",
@@ -358,8 +355,7 @@ class HealthMonitor:
     async def _check_gpu(self) -> HealthStatus:
         """Check GPU/Ollama availability."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.ollama_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with aiohttp.ClientSession() as session, session.get(f"{self.ollama_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         model_count = len(data.get("models", []))

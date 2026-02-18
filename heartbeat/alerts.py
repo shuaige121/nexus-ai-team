@@ -8,7 +8,6 @@ Sends notifications via:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from enum import Enum
@@ -101,9 +100,8 @@ class AlertManager:
             )
 
         # Send Telegram notification (rate-limited)
-        if self._should_send_alert("warning"):
-            if self.enable_telegram and self.telegram_bot_token and self.telegram_chat_id:
-                await self._send_telegram_alert(
+        if self._should_send_alert("warning") and self.enable_telegram and self.telegram_bot_token and self.telegram_chat_id:
+            await self._send_telegram_alert(
                     severity=AlertSeverity.WARNING,
                     components=degraded_components,
                 )
@@ -186,8 +184,7 @@ class AlertManager:
             logger.info("CUSTOM ALERT: %s (details: %s)", message, details)
 
         # Send Telegram notification
-        if self.enable_telegram and self.telegram_bot_token and self.telegram_chat_id:
-            if self._should_send_alert(f"custom_{severity.value}"):
+        if self.enable_telegram and self.telegram_bot_token and self.telegram_chat_id and self._should_send_alert(f"custom_{severity.value}"):
                 emoji_map = {
                     AlertSeverity.INFO: "ℹ️",
                     AlertSeverity.WARNING: "⚠️",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -198,17 +199,15 @@ class ConnectionManager:
             ws = self._connections.get(cid)
             self.disconnect(cid)
             if ws:
-                try:
+                with contextlib.suppress(Exception):
                     await ws.close(code=1001, reason="Ping timeout")
-                except Exception:
-                    pass
 
     async def _wait_pong(self, conn_id: str, event: asyncio.Event) -> bool:
         """Wait for a pong response within timeout. Returns True if received."""
         try:
             await asyncio.wait_for(event.wait(), timeout=PONG_TIMEOUT_SECONDS)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
         finally:
             self._pong_waiters.pop(conn_id, None)

@@ -20,7 +20,7 @@ def analyze_recovery_security():
         print(f"❌ 文件不存在: {recovery_file}")
         return False
 
-    with open(recovery_file, "r") as f:
+    with open(recovery_file) as f:
         content = f.read()
 
     print("\n" + "=" * 60)
@@ -210,7 +210,7 @@ def analyze_monitor_security():
         print(f"❌ 文件不存在: {monitor_file}")
         return False
 
-    with open(monitor_file, "r") as f:
+    with open(monitor_file) as f:
         content = f.read()
 
     checks_passed = []

@@ -10,8 +10,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from equipment.manager import EquipmentManager
 
 # Create a minimal FastAPI app with equipment endpoints
@@ -74,7 +75,7 @@ def test_equipment_api():
     print(f"   状态码: {response.status_code}")
 
     if response.status_code != 200:
-        print(f"   ✗ 请求失败")
+        print("   ✗ 请求失败")
         return False
 
     data = response.json()
@@ -84,7 +85,7 @@ def test_equipment_api():
         print(f"   ✗ API 返回错误: {data.get('error')}")
         return False
 
-    print(f"   ✓ 成功获取设备列表")
+    print("   ✓ 成功获取设备列表")
 
     equipment_list = data.get("equipment", [])
     print(f"\n   设备列表 ({len(equipment_list)}):")
@@ -97,7 +98,7 @@ def test_equipment_api():
     print(f"   状态码: {response.status_code}")
 
     if response.status_code != 200:
-        print(f"   ✗ 请求失败")
+        print("   ✗ 请求失败")
         return False
 
     data = response.json()
@@ -118,7 +119,7 @@ def test_equipment_api():
     print(f"   状态码: {response.status_code}")
 
     if response.status_code != 200:
-        print(f"   ✗ 请求失败")
+        print("   ✗ 请求失败")
         return False
 
     data = response.json()
@@ -126,7 +127,7 @@ def test_equipment_api():
         print(f"   ✗ API 返回错误: {data.get('error')}")
         return False
 
-    print(f"   ✓ 成功执行设备")
+    print("   ✓ 成功执行设备")
     print(f"     状态: {data.get('status')}")
 
     output = data.get("output", {})
@@ -140,7 +141,7 @@ def test_equipment_api():
     print(f"   状态码: {response.status_code}")
 
     if response.status_code != 200:
-        print(f"   ✗ 请求失败")
+        print("   ✗ 请求失败")
         return False
 
     data = response.json()
@@ -156,12 +157,12 @@ def test_equipment_api():
     print(f"   状态码: {response.status_code}")
 
     if response.status_code != 200:
-        print(f"   ✗ 请求失败")
+        print("   ✗ 请求失败")
         return False
 
     data = response.json()
     if data.get("ok"):
-        print(f"   ✗ 应该返回错误但返回成功")
+        print("   ✗ 应该返回错误但返回成功")
         return False
 
     print(f"   ✓ 正确返回错误: {data.get('error')}")

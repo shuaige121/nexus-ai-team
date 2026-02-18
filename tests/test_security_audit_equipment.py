@@ -9,8 +9,8 @@ Checks for:
 - SQL injection
 """
 
-import sys
 import re
+import sys
 from pathlib import Path
 
 # Add project root to path
@@ -227,7 +227,7 @@ class SecurityAuditor:
         medium = [i for i in self.issues if i['severity'] == 'medium']
         low = [i for i in self.issues if i['severity'] == 'low']
 
-        print(f"\n问题统计:")
+        print("\n问题统计:")
         print(f"  严重 (Critical): {len(critical)}")
         print(f"  高危 (High):     {len(high)}")
         print(f"  中危 (Medium):   {len(medium)}")

@@ -3,13 +3,12 @@
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
     import yaml
@@ -35,8 +34,8 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 def _parse_yaml_minimal(path: Path) -> dict[str, Any]:
     """Bare-bones YAML parser for manifest files when PyYAML is unavailable."""
     result: dict[str, Any] = {}
-    current_key: Optional[str] = None
-    current_list: Optional[list[str]] = None
+    current_key: str | None = None
+    current_list: list[str] | None = None
 
     with open(path) as f:
         for raw_line in f:
@@ -93,12 +92,12 @@ def _load_agents_registry() -> dict[str, Any]:
     return _load_yaml(AGENTS_REGISTRY)
 
 
-def _run(cmd: list[str], cwd: Optional[Path] = None) -> subprocess.CompletedProcess[str]:
+def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _resolve_skill_name(url: str) -> str:

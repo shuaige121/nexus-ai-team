@@ -3,10 +3,10 @@ Health Check Equipment
 Monitors system health: CPU, RAM, Disk, GPU
 """
 
-import psutil
 import logging
 from datetime import datetime
-from pathlib import Path
+
+import psutil
 
 logger = logging.getLogger(__name__)
 

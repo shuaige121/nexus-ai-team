@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from dashboard.backend.mock_data import MOCK_ORG, MOCK_AGENTS
+
+from dashboard.backend.mock_data import MOCK_ORG
 
 router = APIRouter(prefix="/api/departments", tags=["departments"])
 

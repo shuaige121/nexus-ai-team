@@ -3,7 +3,6 @@
 
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # Remove DATABASE_URL to test fallback
@@ -11,7 +10,8 @@ if "DATABASE_URL" in os.environ:
     del os.environ["DATABASE_URL"]
 
 # Import after removing env var
-from db.client import DatabaseClient, WorkOrderLog, AgentMetric, AuditLog
+from db.client import AgentMetric, AuditLog, DatabaseClient, WorkOrderLog
+
 
 def test_sqlite_fallback():
     """Test that database client falls back to SQLite when PostgreSQL is unavailable."""

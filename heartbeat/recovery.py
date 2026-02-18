@@ -9,9 +9,8 @@ Attempts to automatically recover from common failures:
 
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import logging
-import os
 import shutil
 import subprocess
 from datetime import UTC, datetime, timedelta
@@ -321,10 +320,8 @@ class RecoveryManager:
         if component:
             self._recovery_attempts[component] = 0
             if self._redis is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await self._redis.delete(f"{RECOVERY_KEY_PREFIX}{component}")
-                except Exception:
-                    pass
         else:
             self._recovery_attempts.clear()
             if self._redis is not None:

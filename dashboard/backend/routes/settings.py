@@ -1,7 +1,8 @@
 """Settings API routes (tools, models, state machine, contract format)."""
 
 from fastapi import APIRouter
-from dashboard.backend.mock_data import MOCK_TOOLS, MOCK_MODELS
+
+from dashboard.backend.mock_data import MOCK_MODELS, MOCK_TOOLS
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 

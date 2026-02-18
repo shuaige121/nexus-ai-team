@@ -23,12 +23,13 @@ from typing import Any
 # Ensure tools/ is on sys.path for sibling imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from org_scanner import (
-    OrgScanner, run_scan, get_diff,
-    SNAPSHOT_PATH, PREV_SNAPSHOT_PATH, NEXUS_DIR, _load_json,
-)
 from ceo_brief import generate_brief, save_brief
-
+from org_scanner import (
+    SNAPSHOT_PATH,
+    _load_json,
+    get_diff,
+    run_scan,
+)
 
 # ---------------------------------------------------------------------------
 # Formatting helpers
@@ -250,18 +251,15 @@ def cmd_export(args: argparse.Namespace) -> None:
 
     if fmt == "json":
         output = json.dumps(snapshot, ensure_ascii=False, indent=2)
-        ext = "json"
     elif fmt == "yaml":
         try:
             import yaml
             output = yaml.dump(snapshot, allow_unicode=True, default_flow_style=False, sort_keys=False)
-            ext = "yaml"
         except ImportError:
             print("PyYAML not installed. Use --format json or install: pip install pyyaml")
             return
     elif fmt in ("md", "markdown"):
         output = _snapshot_to_markdown(snapshot)
-        ext = "md"
     else:
         print(f"Unknown format: {fmt}. Supported: json, yaml, markdown")
         return
@@ -277,12 +275,12 @@ def cmd_export(args: argparse.Namespace) -> None:
 def _snapshot_to_markdown(snapshot: dict[str, Any]) -> str:
     """Convert snapshot to readable Markdown."""
     lines: list[str] = [
-        f"# Nexus AI-Team Organization Snapshot",
-        f"",
+        "# Nexus AI-Team Organization Snapshot",
+        "",
         f"**Timestamp**: {snapshot.get('snapshot_at', 'N/A')}",
         f"**Total Agents**: {snapshot.get('total_agents', 0)}",
         f"**Total Departments**: {snapshot.get('total_departments', 0)}",
-        f"",
+        "",
     ]
     for dept_id, dept in sorted(snapshot.get("departments", {}).items()):
         lines.append(f"## {dept_id}")

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from db.client import AgentMetric, AuditLog, DatabaseClient, SessionLog, WorkOrderLog, get_db_client

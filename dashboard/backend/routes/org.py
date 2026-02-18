@@ -1,6 +1,7 @@
 """Organization structure API routes."""
 
 from fastapi import APIRouter
+
 from dashboard.backend.mock_data import MOCK_ORG, get_org_tree
 
 router = APIRouter(prefix="/api/org", tags=["organization"])

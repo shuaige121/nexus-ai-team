@@ -8,7 +8,7 @@ from pathlib import Path
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from heartbeat.alerts import AlertManager, AlertSeverity
+from heartbeat.alerts import AlertManager
 from heartbeat.monitor import HealthMonitor
 from heartbeat.recovery import RecoveryManager
 

@@ -51,7 +51,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         "*NEXUS System Status*",
         "",
         f"Time: `{escape_markdown_v2(now)}`",
-        f"Bot: online",
+        "Bot: online",
         f"Gateway: {gateway_status}",
         "",
         "_详细状态信息即将推出\\.\\.\\._",

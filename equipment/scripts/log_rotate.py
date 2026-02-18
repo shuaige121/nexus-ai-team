@@ -3,10 +3,9 @@ Log Rotate Equipment
 Rotates and cleans up old log files
 """
 
-import os
 import gzip
-import shutil
 import logging
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -57,7 +56,7 @@ def main(
             "summary": f"Log directory does not exist: {log_dir}",
         }
 
-    cutoff = datetime.now() - timedelta(days=max_age_days)
+    datetime.now() - timedelta(days=max_age_days)
     compressed: list[dict] = []
     deleted: list[dict] = []
     errors: list[str] = []

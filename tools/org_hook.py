@@ -16,22 +16,26 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 # Ensure tools/ is on sys.path for sibling imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from org_scanner import (
-    PROJECT_ROOT, AGENTS_REGISTRY, COMPANY_AGENTS_DIR, AGENTS_DIR,
-    NEXUS_DIR, OrgScanner, _load_json, SNAPSHOT_PATH,
-)
 from ceo_brief import generate_brief, save_brief
+from org_scanner import (
+    AGENTS_DIR,
+    AGENTS_REGISTRY,
+    COMPANY_AGENTS_DIR,
+    NEXUS_DIR,
+    PROJECT_ROOT,
+    OrgScanner,
+    _load_json,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -55,7 +59,7 @@ ORG_SUMMARY_PATH = PROJECT_ROOT / "company" / "org_summary.md"
 
 def _log(msg: str) -> None:
     """Log with timestamp."""
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     line = f"[{ts}] {msg}"
     print(line)
     try:
@@ -113,7 +117,7 @@ def _detect_changes() -> list[str]:
 
     # Save new state
     state["mtimes"] = current
-    state["last_poll"] = datetime.now(timezone.utc).isoformat()
+    state["last_poll"] = datetime.now(UTC).isoformat()
     _save_state(state)
 
     return changed
@@ -147,7 +151,7 @@ def _on_change(changed_files: list[str]) -> None:
     # For the company-internal summary, we reuse the CEO brief format
     _update_org_summary(snapshot)
     save_brief(brief_content)
-    _log(f"CEO brief updated at ~/.nexus/ceo-brief.md")
+    _log("CEO brief updated at ~/.nexus/ceo-brief.md")
 
     # 4. Notify on major changes
     if diff.get("is_major_change"):
@@ -156,7 +160,7 @@ def _on_change(changed_files: list[str]) -> None:
 
 def _update_org_summary(snapshot: dict[str, Any]) -> None:
     """Update company/org_summary.md with current org overview."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     lines: list[str] = [
         "# Nexus AI-Team 组织架构概况",
@@ -207,7 +211,7 @@ def _notify_major_change(diff: dict[str, Any]) -> None:
     # Write notification file for other systems to pick up
     notif_path = NEXUS_DIR / "org-notification.json"
     notif = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "type": "major_org_change",
         "changes": major,
     }
@@ -232,8 +236,8 @@ def cmd_poll() -> None:
 def cmd_watch() -> None:
     """Real-time file watcher using watchdog (or fallback to polling)."""
     try:
-        from watchdog.observers import Observer
         from watchdog.events import FileSystemEventHandler
+        from watchdog.observers import Observer
 
         class OrgChangeHandler(FileSystemEventHandler):
             def __init__(self) -> None:
@@ -319,7 +323,7 @@ def cmd_install_cron() -> None:
         text=True,
     )
     if proc.returncode == 0:
-        print(f"Cron job installed: poll every 5 minutes")
+        print("Cron job installed: poll every 5 minutes")
         print(f"Log: {CHANGE_LOG}")
     else:
         print(f"Failed to install cron: {proc.stderr}")

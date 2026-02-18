@@ -3,9 +3,7 @@
 
 import asyncio
 import json
-import subprocess
 import sys
-import time
 from pathlib import Path
 
 import aiohttp
@@ -23,8 +21,7 @@ async def test_health_api():
     # 检查 gateway 是否已启动
     print("\n检查 Gateway 是否运行...")
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:8001/health", timeout=aiohttp.ClientTimeout(total=2)) as resp:
+        async with aiohttp.ClientSession() as session, session.get("http://localhost:8001/health", timeout=aiohttp.ClientTimeout(total=2)) as resp:
                 if resp.status == 200:
                     print("✅ Gateway 已运行")
                     gateway_running = True
@@ -43,8 +40,7 @@ async def test_health_api():
 
         # 再次检查
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:8001/health", timeout=aiohttp.ClientTimeout(total=2)) as resp:
+            async with aiohttp.ClientSession() as session, session.get("http://localhost:8001/health", timeout=aiohttp.ClientTimeout(total=2)) as resp:
                     if resp.status == 200:
                         print("✅ Gateway 已启动")
                         gateway_running = True
@@ -62,8 +58,7 @@ async def test_health_api():
     print("=" * 60)
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:8000/health", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+        async with aiohttp.ClientSession() as session, session.get("http://localhost:8000/health", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 print(f"状态码: {resp.status}")
                 data = await resp.json()
                 print("响应内容:")
@@ -88,8 +83,7 @@ async def test_health_api():
     print("=" * 60)
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:8001/api/health/detailed", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+        async with aiohttp.ClientSession() as session, session.get("http://localhost:8001/api/health/detailed", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 print(f"状态码: {resp.status}")
                 data = await resp.json()
                 print("\n响应内容:")
@@ -160,8 +154,7 @@ async def test_health_error_handling():
 
     # 测试不存在的端点
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:8001/api/health/nonexistent", timeout=aiohttp.ClientTimeout(total=2)) as resp:
+        async with aiohttp.ClientSession() as session, session.get("http://localhost:8001/api/health/nonexistent", timeout=aiohttp.ClientTimeout(total=2)) as resp:
                 print(f"不存在端点状态码: {resp.status}")
                 if resp.status == 404:
                     print("✅ 正确返回 404")

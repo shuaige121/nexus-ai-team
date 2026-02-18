@@ -4,7 +4,6 @@ UAT Test Script for Phase 3C Equipment Framework
 """
 
 import sys
-import json
 from pathlib import Path
 
 # Add project root to path
@@ -64,7 +63,7 @@ def test_1_equipment_registration_and_execution():
         if not cpu:
             print("✗ 缺少 CPU 信息")
             return False
-        print(f"\nCPU:")
+        print("\nCPU:")
         print(f"  使用率: {cpu.get('usage_percent')}%")
         print(f"  核心数: {cpu.get('count')}")
         print(f"  频率: {cpu.get('frequency_mhz')} MHz")
@@ -74,7 +73,7 @@ def test_1_equipment_registration_and_execution():
         if not ram:
             print("✗ 缺少 RAM 信息")
             return False
-        print(f"\nRAM:")
+        print("\nRAM:")
         print(f"  总量: {ram.get('total_gb')} GB")
         print(f"  已用: {ram.get('used_gb')} GB")
         print(f"  可用: {ram.get('available_gb')} GB")
@@ -85,7 +84,7 @@ def test_1_equipment_registration_and_execution():
         if not disk:
             print("✗ 缺少 Disk 信息")
             return False
-        print(f"\nDisk:")
+        print("\nDisk:")
         print(f"  总量: {disk.get('total_gb')} GB")
         print(f"  已用: {disk.get('used_gb')} GB")
         print(f"  空闲: {disk.get('free_gb')} GB")
@@ -109,7 +108,7 @@ def test_1_equipment_registration_and_execution():
         updated_equipment = manager.get_equipment("health_check")
         final_count = updated_equipment["run_count"]
 
-        print(f"\n运行次数验证:")
+        print("\n运行次数验证:")
         print(f"  执行前计数: {initial_count}")
         print(f"  执行后计数: {final_count}")
 
@@ -222,7 +221,7 @@ def main():
     print(f"\n通过: {passed}/{total}")
 
     if failures:
-        print(f"\n失败的测试:")
+        print("\n失败的测试:")
         for failure in failures:
             print(f"  - {failure}")
 

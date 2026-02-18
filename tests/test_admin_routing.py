@@ -161,7 +161,7 @@ def test_equipment_integration():
 
     work_order = admin.create_work_order(test_request)
 
-    print(f"\nWork Order:")
+    print("\nWork Order:")
     print(f"  ID: {work_order.id}")
     print(f"  意图: {work_order.intent}")
     print(f"  难度: {work_order.difficulty}")

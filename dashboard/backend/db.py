@@ -1,9 +1,7 @@
 """SQLite database for token logs, activation records, and analytics."""
 
-import sqlite3
 import os
-import json
-from datetime import datetime, timezone
+import sqlite3
 from contextlib import contextmanager
 
 DB_PATH = os.environ.get("DASHBOARD_DB_PATH", "dashboard/backend/dashboard.db")

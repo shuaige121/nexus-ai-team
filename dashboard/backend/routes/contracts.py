@@ -1,7 +1,10 @@
 """Contract management API routes."""
 
+from datetime import UTC
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+
 from dashboard.backend.mock_data import MOCK_CONTRACTS
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
@@ -20,14 +23,14 @@ class ContractCreate(BaseModel):
 @router.get("")
 async def list_contracts(
     status: str | None = Query(None),
-    type: str | None = Query(None),
+    contract_type: str | None = Query(None, alias="type"),
 ):
     """获取所有contract（支持状态和类型筛选）。"""
     result = MOCK_CONTRACTS
     if status:
         result = [c for c in result if c["status"] == status]
-    if type:
-        result = [c for c in result if c["type"] == type]
+    if contract_type:
+        result = [c for c in result if c["type"] == contract_type]
     return result
 
 
@@ -87,9 +90,9 @@ async def get_contract_chain(contract_id: str):
 async def create_contract(body: ContractCreate):
     """手动创建contract（调试用）。"""
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
     new_id = f"CTR-{str(uuid.uuid4())[:6].upper()}"
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     contract = {
         "id": new_id,
         "type": body.type,

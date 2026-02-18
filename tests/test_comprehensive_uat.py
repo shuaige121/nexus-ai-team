@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """Comprehensive UAT for Phase 3B: QA Pipeline + PostgreSQL Logging."""
 
-import json
 import subprocess
 import sys
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
 
 def run_test(name: str, command: list[str], expected_exit_code: int = 0) -> tuple[bool, str]:

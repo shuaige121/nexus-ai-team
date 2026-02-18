@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
@@ -21,8 +21,8 @@ from gateway.auth import AuthMiddleware
 from gateway.config import settings
 from gateway.rate_limiter import RateLimiterMiddleware
 from gateway.schemas import HealthResponse
-from gateway.ws import manager
 from gateway.skill_registry import SkillRegistry
+from gateway.ws import manager
 from nexus_v1.admin import AdminAgent
 from nexus_v1.model_router import ModelRouter
 from pipeline import Dispatcher, QueueManager, WorkOrderDB
@@ -121,9 +121,8 @@ async def health_broadcast_loop():
                 # Check PostgreSQL via connection pool (M4)
                 if db:
                     try:
-                        async with db.get_connection() as conn:
-                            async with conn.cursor() as cur:
-                                await cur.execute("SELECT 1")
+                        async with db.get_connection() as conn, conn.cursor() as cur:
+                            await cur.execute("SELECT 1")
                         health_report["postgres"] = {
                             "status": "healthy",
                             "message": "PostgreSQL connected",
@@ -177,10 +176,8 @@ async def lifespan(app: FastAPI):
     # Cleanup
     if health_broadcast_task:
         health_broadcast_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await health_broadcast_task
-        except asyncio.CancelledError:
-            pass
     if dispatcher:
         await dispatcher.stop()
     if queue:
@@ -274,17 +271,16 @@ async def detailed_health():
     # Check PostgreSQL via connection pool (M4)
     if db:
         try:
-            async with db.get_connection() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "SELECT COUNT(*) FROM work_orders WHERE status = 'in_progress'"
-                    )
-                    result = await cur.fetchone()
-                    in_progress_count = result[0] if result else 0
+            async with db.get_connection() as conn, conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT COUNT(*) FROM work_orders WHERE status = 'in_progress'"
+                )
+                result = await cur.fetchone()
+                in_progress_count = result[0] if result else 0
 
-                    await cur.execute("SELECT COUNT(*) FROM work_orders")
-                    result = await cur.fetchone()
-                    total_count = result[0] if result else 0
+                await cur.execute("SELECT COUNT(*) FROM work_orders")
+                result = await cur.fetchone()
+                total_count = result[0] if result else 0
 
             health_report["postgres"] = {
                 "status": "healthy",
@@ -294,15 +290,14 @@ async def detailed_health():
             }
 
             # Check for stale work orders
-            async with db.get_connection() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "SELECT COUNT(*) FROM work_orders"
-                        " WHERE status = 'in_progress'"
-                        " AND updated_at < NOW() - INTERVAL '5 minutes'"
-                    )
-                    result = await cur.fetchone()
-                    stale_count = result[0] if result else 0
+            async with db.get_connection() as conn, conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT COUNT(*) FROM work_orders"
+                    " WHERE status = 'in_progress'"
+                    " AND updated_at < NOW() - INTERVAL '5 minutes'"
+                )
+                result = await cur.fetchone()
+                stale_count = result[0] if result else 0
 
             if stale_count > 0:
                 health_report["agents"] = {
@@ -419,10 +414,9 @@ async def list_work_orders(
         query += " ORDER BY created_at DESC LIMIT %s"
         params.append(limit)
 
-        async with db.get_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(query, params)
-                rows = await cur.fetchall()
+        async with db.get_connection() as conn, conn.cursor() as cur:
+            await cur.execute(query, params)
+            rows = await cur.fetchall()
 
         return {"ok": True, "work_orders": rows, "count": len(rows)}
     except Exception as e:

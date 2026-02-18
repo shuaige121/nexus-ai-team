@@ -1,18 +1,26 @@
 """FastAPI dashboard app for AgentOffice."""
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
 import hmac
 import logging
 import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from dashboard.backend.db import init_db
+from dashboard.backend.routes import (
+    activate,
+    agents,
+    analytics,
+    contracts,
+    departments,
+    org,
+    settings,
+)
 from dashboard.backend.ws import ws_endpoint
-from dashboard.backend.routes import org, agents, contracts, analytics, activate, departments, settings
-
 
 logger = logging.getLogger("dashboard.auth")
 

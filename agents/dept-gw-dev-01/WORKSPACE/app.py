@@ -1,6 +1,6 @@
 """Hello World HTTP API server."""
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 class HelloHandler(BaseHTTPRequestHandler):
@@ -15,7 +15,7 @@ class HelloHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def log_message(self, format, *args):
+    def log_message(self, fmt, *args):  # noqa: A002
         pass  # Suppress logs during testing
 
 

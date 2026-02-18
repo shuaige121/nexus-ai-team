@@ -8,14 +8,15 @@ at ~/.nexus/ceo-brief.md.
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from org_scanner import (
-    NEXUS_DIR, SNAPSHOT_PATH, PREV_SNAPSHOT_PATH,
-    OrgScanner, _load_json, run_scan, get_diff,
+    NEXUS_DIR,
+    SNAPSHOT_PATH,
+    OrgScanner,
+    _load_json,
 )
 
 BRIEF_PATH = NEXUS_DIR / "ceo-brief.md"
@@ -76,7 +77,7 @@ def _build_org_tree(snapshot: dict[str, Any]) -> str:
             sub = node[target]
             if isinstance(sub, dict):
                 return sub.get("direct_reports", [])
-        for key, val in node.items():
+        for _key, val in node.items():
             if isinstance(val, dict):
                 result = _find_children(val, target)
                 if result:
@@ -202,7 +203,7 @@ def generate_brief(force_scan: bool = True) -> str:
         snapshot = _load_json(SNAPSHOT_PATH)
         diff = None
 
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     total_agents = snapshot.get("total_agents", 0)
     total_depts = snapshot.get("total_departments", 0)
 

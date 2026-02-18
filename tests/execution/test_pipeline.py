@@ -2,7 +2,7 @@
 
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 
 from agents.execution.escalation import EscalationManager, EscalationResult
 from agents.execution.executor import ExecutionResult
@@ -168,7 +168,7 @@ class TestExecutionPipeline(unittest.TestCase):
         )
         self.mock_escalation.execute_with_escalation.return_value = escalation_result
 
-        result = asyncio.run(
+        asyncio.run(
             self.pipeline.process("Build something", conversation=conversation)
         )
 

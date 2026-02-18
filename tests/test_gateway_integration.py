@@ -3,11 +3,9 @@
 
 import asyncio
 import json
-import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 import httpx
 
@@ -103,7 +101,7 @@ async def test_error_handling():
             if response.status_code != 404:
                 print(f"⚠️  Expected 404, got {response.status_code}")
             else:
-                print(f"✅ Correct 404 response for invalid endpoint")
+                print("✅ Correct 404 response for invalid endpoint")
 
             return True
 

@@ -1,11 +1,11 @@
 """Analytics API routes."""
 
 from fastapi import APIRouter, Query
+
 from dashboard.backend.mock_data import (
-    generate_token_history,
-    generate_performance_data,
     generate_cost_optimization,
-    MOCK_AGENTS,
+    generate_performance_data,
+    generate_token_history,
 )
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -13,12 +13,12 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 @router.get("/tokens")
 async def get_token_stats(
-    range: str = Query("7d"),
+    time_range: str = Query("7d", alias="range"),
     agent: str | None = Query(None),
 ):
     """获取token消耗数据。"""
     days_map = {"1d": 1, "7d": 7, "30d": 30}
-    days = days_map.get(range, 7)
+    days = days_map.get(time_range, 7)
     data = generate_token_history(days)
     if agent:
         data = [d for d in data if d["agent_name"] == agent]
