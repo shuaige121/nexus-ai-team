@@ -90,7 +90,7 @@ class UATRunner:
         print(f"\n测试时间: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"测试耗时: {duration:.2f} 秒")
         print("\n分支: phase3c-equipment")
-        print("仓库: /home/leonard/Desktop/nexus-ai-team")
+        print(f"仓库: {Path(__file__).resolve().parent.parent}")
 
         # Summary
         total = len(self.results)

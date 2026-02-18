@@ -4,8 +4,12 @@
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import httpx
+
+# Project root = parent of tests/ directory
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_gateway_startup():
@@ -19,7 +23,7 @@ def test_gateway_startup():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        cwd="/home/leonard/Desktop/nexus-ai-team",
+        cwd=str(PROJECT_ROOT),
     )
 
     # Wait for startup

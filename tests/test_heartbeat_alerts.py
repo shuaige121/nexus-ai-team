@@ -27,7 +27,7 @@ async def test_alert_and_recovery():
 
     recovery_manager = RecoveryManager(
         alert_manager=alert_manager,
-        project_root="/home/leonard/Desktop/nexus-ai-team",
+        project_root=str(Path(__file__).resolve().parent.parent),
         enable_auto_recovery=True,
         enable_restart=False,
     )

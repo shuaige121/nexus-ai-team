@@ -1,3 +1,5 @@
+from pathlib import Path
+
 #!/usr/bin/env python3
 """Comprehensive UAT for Phase 3B: QA Pipeline + PostgreSQL Logging."""
 
@@ -18,7 +20,7 @@ def run_test(name: str, command: list[str], expected_exit_code: int = 0) -> tupl
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/leonard/Desktop/nexus-ai-team",
+            cwd=str(Path(__file__).resolve().parent.parent),
         )
 
         print(f"Exit code: {result.returncode}")

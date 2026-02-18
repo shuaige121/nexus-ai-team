@@ -1,3 +1,5 @@
+from pathlib import Path
+
 #!/usr/bin/env python3
 """Integration test for gateway API endpoints."""
 
@@ -20,7 +22,7 @@ def start_server():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        cwd="/home/leonard/Desktop/nexus-ai-team",
+        cwd=str(Path(__file__).resolve().parent.parent),
     )
 
     # Wait for server to start

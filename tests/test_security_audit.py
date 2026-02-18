@@ -87,7 +87,7 @@ def audit_security(base_path: Path) -> dict[str, list[str]]:
     return results
 
 if __name__ == "__main__":
-    base_path = Path("/home/leonard/Desktop/nexus-ai-team")
+    base_path = Path(__file__).resolve().parent.parent
 
     print("=== Security Audit ===")
     print(f"Scanning: {base_path}")
