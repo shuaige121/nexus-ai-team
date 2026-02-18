@@ -1,0 +1,159 @@
+# NEXUS AI-Team Chain of Command
+# This file is read by all agents to understand org structure and authority
+# DO NOT EDIT MANUALLY — managed by HR agent via SOP: create-department
+
+version: "1.0"
+updated: "2026-02-19"
+
+hierarchy:
+  board:
+    role: "Board of Directors"
+    type: "human"
+    level: 0
+    authority: "supreme"
+    description: "Human user. Highest authority. Approves budget, hardware, major decisions."
+    powers:
+      - approve_department_creation
+      - approve_budget
+      - approve_hardware
+      - override_any_decision
+      - set_strategic_direction
+
+  ceo:
+    role: "CEO"
+    type: "ai_agent"
+    level: 1
+    authority: "executive"
+    reports_to: "board"
+    model: "capable"
+    description: "Highest AI authority. Architecture and direction only. Never touches code. Keeps context clean."
+    powers:
+      - issue_contracts
+      - request_department_creation  # requires board approval
+      - request_system_upgrade       # requires board approval
+      - dispatch_project_manager
+      - approve_hiring
+      - approve_tool_requests
+    constraints:
+      - "Never reads or writes code"
+      - "Major changes require board approval"
+      - "Delegates all execution work"
+    context_threshold: 0.80
+    assistants:
+      enabled: true
+      spawn_trigger: "context > 0.80 OR concurrent_contracts > 5"
+      max_count: 3
+
+departments:
+  hr:
+    name: "HR Team"
+    type: "builtin"
+    status: "active"
+    manager: "hr_manager"
+    level: 2
+    reports_to: "ceo"
+    description: "Workforce management. Generates JDs, onboards agents, creates departments."
+    sop:
+      create_employee:
+        trigger: "request from ceo or peer manager"
+        steps:
+          - "Receive staffing request with role requirements"
+          - "Generate JD using RACE profile template"
+          - "Write JD to agents/jds/{agent_id}.md"
+          - "Register agent in company/org.yaml"
+          - "Notify requester: agent ready"
+        requires_approval: false
+      create_department:
+        trigger: "request from ceo only"
+        steps:
+          - "Receive department spec from CEO"
+          - "Generate department config in company/departments/{dept_id}.yaml"
+          - "Generate manager JD"
+          - "Generate initial worker JDs if specified"
+          - "Update company/org.yaml"
+          - "Update company/chain-of-command.yaml"
+          - "Notify CEO: department ready"
+        requires_approval: "ceo"
+    perspectives:
+      ceo_sees: "Add department, Add employee"
+      peer_sees: "Request personnel"
+
+  it:
+    name: "IT Team"
+    type: "builtin"
+    status: "active"
+    manager: "it_manager"
+    level: 2
+    reports_to: "ceo"
+    description: "System architecture, tools, GitHub. Only dept that understands infrastructure."
+    sop:
+      add_tool:
+        trigger: "request from ceo or peer manager"
+        steps:
+          - "Receive tool request with requirements"
+          - "Search GitHub/marketplace for candidates"
+          - "Evaluate compatibility with current system"
+          - "Install and configure tool"
+          - "Write tool spec to equipment/{tool_id}.yaml"
+          - "Notify requester: tool ready"
+        requires_approval: false
+      system_upgrade:
+        trigger: "request from ceo only"
+        steps:
+          - "Receive upgrade spec from CEO"
+          - "Assess impact on all departments"
+          - "Create upgrade plan"
+          - "Request CEO approval for plan"
+          - "Execute upgrade"
+          - "Run integration tests"
+          - "Notify all departments of changes"
+        requires_approval: "ceo"
+    perspectives:
+      ceo_sees: "Add tools, System-wide upgrade"
+      peer_sees: "Request tools"
+
+# Dynamic departments are added here by HR when CEO approves
+# Example:
+#  marketing:
+#    name: "Marketing Team"
+#    type: "dynamic"
+#    status: "active"
+#    manager: "marketing_manager"
+#    level: 2
+#    reports_to: "ceo"
+#    description: "Content creation, social media, brand management."
+
+context_management:
+  alert_threshold: 0.80
+  critical_threshold: 0.90
+  handoff_protocol:
+    - "Manager context hits alert threshold (>80%)"
+    - "Manager requests HR for new worker"
+    - "HR provisions new worker agent"
+    - "Manager writes training doc: transfers JD execution details + work logs to worker JD.md"
+    - "Worker executes test task, Manager QA-checks"
+    - "On PASS: Manager deletes transferred content from own JD.md and work records"
+    - "Manager context drops to ~35%, returns to pure management role"
+
+department_creation_workflow:
+  steps:
+    - actor: "ceo"
+      action: "Identify capability gap"
+    - actor: "ceo"
+      action: "Dispatch Project Manager to investigate"
+    - actor: "pm"
+      action: "Research workflow, tools needed, system requirements"
+    - actor: "pm"
+      action: "Deliver project plan to CEO"
+    - actor: "ceo"
+      action: "Send tool requirements to IT"
+    - actor: "ceo"
+      action: "Send agent JD specs to HR"
+    - actor: "ceo"
+      action: "Request board approval if budget/hardware needed"
+    - actor: "hr"
+      action: "Generate department + agent JDs"
+    - actor: "ceo"
+      action: "Activate department"
+    - actor: "manager"
+      action: "Begin operations (solo if light load)"

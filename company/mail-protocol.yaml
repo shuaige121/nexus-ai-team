@@ -1,0 +1,692 @@
+# NEXUS AI-Team Mail Protocol
+# Defines the structured mail system for inter-agent communication
+# Version: 1.0
+# Date: 2026-02-19
+# Contract: CEO-002
+#
+# This file defines:
+#   - Mail format and schema
+#   - Mail types and their semantics
+#   - Routing rules and validation logic
+#   - Storage schema
+#   - Delivery guarantees
+#
+# The mail system is the ONLY authorized inter-agent communication channel.
+# All other communication paths (direct file writes, shared memory, etc.) are prohibited.
+
+version: "1.0"
+schema: "nexus-mail-protocol-v1"
+
+# =============================================================================
+# MAIL FORMAT
+# =============================================================================
+
+mail_schema:
+  id:
+    type: string
+    format: "MAIL-{YYYYMMDD}-{HHmmss}-{random_4hex}"
+    generated_by: system
+    description: "Unique mail ID, auto-generated, cannot be set by sender"
+    example: "MAIL-20260219-143022-a7f3"
+
+  from:
+    type: string
+    generated_by: system
+    description: >
+      Sender agent ID. ALWAYS set by system to the authenticated caller's ID.
+      Cannot be overridden by the agent. This prevents spoofing.
+    validation: "SYSTEM_ENFORCED: set to caller_agent_id at tool execution time"
+
+  to:
+    type: string
+    required: true
+    description: "Recipient agent ID"
+    validation:
+      - "MUST be in sender's allowed_contacts OR conditional_contacts (from roles.yaml)"
+      - "If in conditional_contacts, mail type MUST match allowed_mail_types"
+      - "If conditional_contact requires active_contract, a valid contract must exist"
+
+  type:
+    type: enum
+    required: true
+    values:
+      - contract
+      - report
+      - approval_request
+      - info
+      - escalation
+      - question
+      - verdict
+      - staffing_request
+      - tool_request
+      - tech_review
+      - requirement_clarification
+      - deployment_approval
+    description: "Mail type determines routing rules and allowed sender/receiver pairs"
+
+  subject:
+    type: string
+    required: true
+    max_length: 200
+    description: "Brief subject line"
+
+  body:
+    type: string
+    required: true
+    max_length: 10000
+    description: "Mail body content, supports markdown formatting"
+
+  priority:
+    type: enum
+    required: false
+    default: medium
+    values: [low, medium, high, critical]
+    description: >
+      Priority level. 'critical' triggers immediate processing.
+      'high' is processed before 'medium' and 'low'.
+
+  attachments:
+    type: list
+    required: false
+    default: []
+    item_schema:
+      path:
+        type: string
+        validation: "MUST be within sender's file_scope.read"
+      description:
+        type: string
+        max_length: 200
+    max_items: 10
+    description: "File attachments. Paths are validated against sender's file scope."
+
+  reply_to:
+    type: string
+    required: false
+    default: null
+    description: "ID of the mail this is replying to. Creates a thread."
+    validation: "If set, must reference an existing mail ID"
+
+  contract_ref:
+    type: string
+    required: false
+    default: null
+    description: "ID of the associated contract. Links mail to contract workflow."
+
+  # --- System-managed fields (read-only for agents) ---
+  created_at:
+    type: datetime
+    generated_by: system
+    description: "Timestamp when mail was created"
+
+  delivered_at:
+    type: datetime
+    generated_by: system
+    description: "Timestamp when mail was delivered to recipient's inbox"
+
+  read_at:
+    type: datetime
+    generated_by: system
+    description: "Timestamp when recipient read the mail"
+
+  status:
+    type: enum
+    generated_by: system
+    values: [sent, delivered, read, failed, rejected]
+    description: "Mail delivery status"
+
+
+# =============================================================================
+# MAIL TYPES — DETAILED DEFINITIONS
+# =============================================================================
+
+mail_types:
+
+  contract:
+    description: "Formal work contract with deliverables and deadlines"
+    allowed_senders:
+      by_level: [1, 2]           # CEO and Managers only
+    allowed_receivers:
+      rule: "sender.level < receiver.level"  # only send contracts downward
+    required_fields:
+      - subject
+      - body
+      - priority
+    optional_fields:
+      - contract_ref              # for sub-contracts referencing parent
+    creates_contract: true        # triggers contract state machine
+    contract_extra_fields:
+      deadline: {type: datetime, required: true}
+      workspace_scope: {type: string, required: false}
+      assigned_branch: {type: string, required: false}
+      deliverables: {type: list, required: true}
+      acceptance_criteria: {type: list, required: true}
+
+  report:
+    description: "Work status or completion report"
+    allowed_senders:
+      by_level: [1, 2, 3]       # all levels
+    allowed_receivers:
+      rule: "receiver == sender.reports_to"  # reports go upward to direct manager
+    required_fields:
+      - subject
+      - body
+    optional_fields:
+      - contract_ref
+      - attachments
+
+  approval_request:
+    description: "Request approval for an action"
+    allowed_senders:
+      by_level: [2, 3]          # managers and workers
+    allowed_receivers:
+      rule: "receiver == sender.reports_to"  # approval goes upward
+    required_fields:
+      - subject
+      - body
+    response_expected: true
+    response_types: [approval_granted, approval_denied]
+
+  info:
+    description: "Informational message, no action required"
+    allowed_senders:
+      by_level: [1, 2, 3]
+    allowed_receivers:
+      rule: "receiver in sender.allowed_contacts OR receiver in sender.conditional_contacts"
+    required_fields:
+      - subject
+      - body
+
+  escalation:
+    description: "Problem escalation requiring superior attention"
+    allowed_senders:
+      by_level: [2, 3]
+    allowed_receivers:
+      rule: "receiver == sender.reports_to"
+    required_fields:
+      - subject
+      - body
+    extra_fields:
+      severity: {type: enum, values: [low, medium, high, critical], required: true}
+    triggers:
+      - "recipient gets notification with severity flag"
+      - "if severity == critical, also notify recipient's superior"
+
+  question:
+    description: "Question or clarification request"
+    allowed_senders:
+      by_level: [3]             # workers only
+    allowed_receivers:
+      rule: "receiver == sender.reports_to OR (receiver in sender.conditional_contacts AND active_contract_exists)"
+    required_fields:
+      - subject
+      - body
+    optional_fields:
+      - contract_ref
+
+  verdict:
+    description: "QA review verdict"
+    allowed_senders:
+      by_role: [qa_worker]
+    allowed_receivers:
+      rule: "receiver == sender.reports_to"  # qa_worker -> it_manager
+    required_fields:
+      - subject
+      - body
+      - contract_ref
+    extra_fields:
+      verdict_result: {type: enum, values: [PASS, FAIL], required: true}
+      issues_found: {type: list, required: false}
+
+  staffing_request:
+    description: "Request for new personnel"
+    allowed_senders:
+      by_level: [2]             # managers only
+    allowed_receivers:
+      by_role: [hr_manager]     # only HR can receive staffing requests
+    required_fields:
+      - subject
+      - body
+    extra_fields:
+      role_needed: {type: string, required: true}
+      department: {type: string, required: true}
+      justification: {type: string, required: true}
+
+  tool_request:
+    description: "Request for tool installation or configuration"
+    allowed_senders:
+      by_level: [2]
+    allowed_receivers:
+      by_role: [it_manager]
+    required_fields:
+      - subject
+      - body
+    extra_fields:
+      tool_name: {type: string, required: true}
+      purpose: {type: string, required: true}
+
+  tech_review:
+    description: "Technical feasibility review or assessment"
+    allowed_senders:
+      by_role: [it_manager]
+    allowed_receivers:
+      by_role: [product_manager, ceo]
+    required_fields:
+      - subject
+      - body
+    optional_fields:
+      - attachments
+      - contract_ref
+
+  requirement_clarification:
+    description: "UI/UX requirement clarification from PM to frontend"
+    allowed_senders:
+      by_role: [product_manager]
+    allowed_receivers:
+      by_role: [frontend_worker]
+    required_fields:
+      - subject
+      - body
+      - contract_ref           # must reference active contract
+    condition: "active contract must exist linking PM and frontend_worker"
+
+  deployment_approval:
+    description: "Approval for deployment to target environment"
+    allowed_senders:
+      by_role: [it_manager]
+    allowed_receivers:
+      by_role: [devops_worker]
+    required_fields:
+      - subject
+      - body
+    extra_fields:
+      environment: {type: enum, values: [staging, production], required: true}
+      deployment_id: {type: string, required: true}
+      conditions: {type: string, required: false}
+
+
+# =============================================================================
+# ROUTING RULES
+# =============================================================================
+
+routing:
+
+  # --- Primary validation (executed in order) ---
+  validation_pipeline:
+
+    - step: 1
+      name: "authenticate_sender"
+      description: "Override mail.from with authenticated caller agent ID"
+      action: "mail.from = context.caller_agent_id"
+      failure: "IMPOSSIBLE — system always knows caller identity"
+
+    - step: 2
+      name: "validate_recipient_exists"
+      description: "Check that mail.to references an active agent"
+      action: "lookup agent by mail.to in roles registry"
+      failure:
+        action: reject
+        reason: "Recipient '{mail.to}' does not exist or is deactivated"
+        log_to: mail_rejections
+
+    - step: 3
+      name: "validate_contact_authorization"
+      description: "Check sender is authorized to contact recipient"
+      action: |
+        sender_role = load_role(mail.from)
+        if mail.to in sender_role.allowed_contacts:
+            pass  # unconditionally allowed
+        elif mail.to in sender_role.conditional_contacts:
+            rule = sender_role.conditional_contacts[mail.to]
+            if rule.allowed_mail_types and mail.type not in rule.allowed_mail_types:
+                reject("Mail type not allowed for this contact pair")
+            if rule.requires == "active_contract":
+                if not active_contract_exists(mail.from, mail.to):
+                    reject("Conditional contact requires active contract")
+        else:
+            reject("Not authorized to contact this agent")
+      failure:
+        action: reject
+        reason: "Communication denied: {mail.from} -> {mail.to} not in allowed contacts"
+        log_to: mail_rejections
+
+    - step: 4
+      name: "validate_mail_type_permissions"
+      description: "Check sender is allowed to send this mail type"
+      action: |
+        mail_type_def = mail_types[mail.type]
+        if mail_type_def.allowed_senders.by_level:
+            assert sender.level in mail_type_def.allowed_senders.by_level
+        if mail_type_def.allowed_senders.by_role:
+            assert sender.role in mail_type_def.allowed_senders.by_role
+        if mail_type_def.allowed_receivers.rule:
+            assert evaluate_rule(mail_type_def.allowed_receivers.rule, sender, receiver)
+      failure:
+        action: reject
+        reason: "Sender role/level not permitted for mail type '{mail.type}'"
+        log_to: mail_rejections
+
+    - step: 5
+      name: "validate_attachments"
+      description: "Check all attachment paths are within sender's file scope"
+      action: |
+        for attachment in mail.attachments:
+            assert is_within_scope(attachment.path, sender_role.file_scope.read)
+      failure:
+        action: reject
+        reason: "Attachment path outside sender's file scope"
+        log_to: mail_rejections
+
+    - step: 6
+      name: "validate_required_fields"
+      description: "Check mail type required fields are present"
+      action: "validate against mail_types[mail.type].required_fields"
+      failure:
+        action: reject
+        reason: "Missing required field for mail type '{mail.type}'"
+
+    - step: 7
+      name: "generate_metadata"
+      description: "Generate system fields"
+      action: |
+        mail.id = generate_id()
+        mail.created_at = now()
+        mail.status = "sent"
+
+    - step: 8
+      name: "deliver"
+      description: "Write mail to database and update status"
+      action: |
+        insert_mail(mail)
+        mail.status = "delivered"
+        mail.delivered_at = now()
+        notify_recipient(mail.to)
+      failure:
+        action: retry
+        max_retries: 3
+        fallback: "mark as failed, alert sender"
+
+  # --- Special routing rules ---
+  special_rules:
+
+    escalation_cascade:
+      description: >
+        When an escalation with severity=critical is received,
+        automatically notify the recipient's superior as well.
+      trigger: "mail.type == 'escalation' AND mail.severity == 'critical'"
+      action: |
+        recipient = load_role(mail.to)
+        if recipient.reports_to:
+            send_notification(recipient.reports_to, 
+                "Critical escalation received by {mail.to}: {mail.subject}")
+
+    contract_state_machine:
+      description: >
+        When a mail of type 'contract' is delivered, create a contract
+        record with state machine tracking.
+      trigger: "mail.type == 'contract'"
+      action: |
+        create_contract_record(
+            mail_id=mail.id,
+            from_agent=mail.from,
+            to_agent=mail.to,
+            status="pending",
+            deadline=mail.contract_extra.deadline,
+            deliverables=mail.contract_extra.deliverables
+        )
+
+    verdict_triggers:
+      description: >
+        When a QA verdict is submitted, update the associated contract status.
+      trigger: "mail.type == 'verdict'"
+      action: |
+        contract = load_contract(mail.contract_ref)
+        if mail.verdict_result == "PASS":
+            contract.status = "passed"
+        else:
+            contract.status = "failed"
+            contract.failure_count += 1
+        update_contract(contract)
+
+    auto_acknowledge:
+      description: >
+        System auto-generates a delivery receipt for high/critical priority mails.
+      trigger: "mail.priority in ['high', 'critical']"
+      action: |
+        send_system_notification(mail.from,
+            "Mail {mail.id} delivered to {mail.to} at {mail.delivered_at}")
+
+    manager_unresponsive_alert:
+      description: >
+        If a manager has unread escalation mails older than 30 minutes,
+        alert their superior.
+      trigger: "periodic_check: every 15 minutes"
+      condition: |
+        unread_escalations = query_mails(
+            to_agent=manager.id, 
+            type='escalation', 
+            status='delivered', 
+            delivered_at < now() - 30min
+        )
+        return len(unread_escalations) > 0
+      action: |
+        alert(manager.reports_to,
+            "{manager.id} has {count} unread escalations for 30+ minutes")
+
+
+# =============================================================================
+# STORAGE
+# =============================================================================
+
+storage:
+  backend: postgresql
+  connection: "configured via NEXUS_DB_URL environment variable"
+
+  tables:
+
+    mails:
+      description: "Primary mail storage"
+      columns:
+        id: {type: "VARCHAR(32)", primary_key: true}
+        from_agent: {type: "VARCHAR(64)", not_null: true}
+        to_agent: {type: "VARCHAR(64)", not_null: true}
+        mail_type: {type: "VARCHAR(32)", not_null: true}
+        subject: {type: "VARCHAR(200)", not_null: true}
+        body: {type: TEXT, not_null: true}
+        priority: {type: "VARCHAR(8)", not_null: true, default: "'medium'"}
+        attachments: {type: JSONB, default: "'[]'"}
+        extra_fields: {type: JSONB, default: "'{}'", description: "Type-specific extra fields"}
+        reply_to: {type: "VARCHAR(32)", references: "mails(id)"}
+        contract_ref: {type: "VARCHAR(32)"}
+        status: {type: "VARCHAR(16)", not_null: true, default: "'sent'"}
+        created_at: {type: TIMESTAMPTZ, not_null: true, default: "NOW()"}
+        delivered_at: {type: TIMESTAMPTZ}
+        read_at: {type: TIMESTAMPTZ}
+        rejected_reason: {type: TEXT}
+        route_log: {type: JSONB, description: "Full routing pipeline audit trail"}
+      indexes:
+        - {name: idx_mails_to_status, columns: [to_agent, status]}
+        - {name: idx_mails_from, columns: [from_agent]}
+        - {name: idx_mails_contract, columns: [contract_ref]}
+        - {name: idx_mails_created, columns: [created_at]}
+        - {name: idx_mails_type, columns: [mail_type]}
+
+    mail_rejections:
+      description: "Audit log of all rejected communication attempts"
+      columns:
+        id: {type: SERIAL, primary_key: true}
+        from_agent: {type: "VARCHAR(64)", not_null: true}
+        to_agent: {type: "VARCHAR(64)", not_null: true}
+        mail_type: {type: "VARCHAR(32)"}
+        reason: {type: TEXT, not_null: true}
+        validation_step: {type: "VARCHAR(64)", description: "Which validation step rejected it"}
+        raw_payload: {type: JSONB, description: "Original mail payload for forensics"}
+        attempted_at: {type: TIMESTAMPTZ, not_null: true, default: "NOW()"}
+      indexes:
+        - {name: idx_rejections_from, columns: [from_agent]}
+        - {name: idx_rejections_at, columns: [attempted_at]}
+        - {name: idx_rejections_reason, columns: [validation_step]}
+
+    contracts:
+      description: "Contract state machine tracking (created from contract-type mails)"
+      columns:
+        id: {type: "VARCHAR(32)", primary_key: true}
+        mail_id: {type: "VARCHAR(32)", references: "mails(id)", not_null: true}
+        from_agent: {type: "VARCHAR(64)", not_null: true}
+        to_agent: {type: "VARCHAR(64)", not_null: true}
+        status: {type: "VARCHAR(16)", not_null: true, default: "'pending'"}
+        # Status values: pending, accepted, in_progress, review, passed, failed, cancelled
+        deadline: {type: TIMESTAMPTZ}
+        workspace_scope: {type: "VARCHAR(256)"}
+        assigned_branch: {type: "VARCHAR(128)"}
+        deliverables: {type: JSONB}
+        acceptance_criteria: {type: JSONB}
+        failure_count: {type: INTEGER, default: 0}
+        max_failures: {type: INTEGER, default: 3}
+        created_at: {type: TIMESTAMPTZ, not_null: true, default: "NOW()"}
+        updated_at: {type: TIMESTAMPTZ, not_null: true, default: "NOW()"}
+        completed_at: {type: TIMESTAMPTZ}
+      indexes:
+        - {name: idx_contracts_to, columns: [to_agent, status]}
+        - {name: idx_contracts_from, columns: [from_agent]}
+        - {name: idx_contracts_status, columns: [status]}
+
+  # Contract state transitions
+  contract_state_machine:
+    states:
+      pending:
+        description: "Contract created, awaiting worker acceptance"
+        transitions:
+          - to: accepted
+            trigger: "worker reads and acknowledges contract"
+          - to: cancelled
+            trigger: "sender cancels contract"
+      accepted:
+        description: "Worker accepted, not yet started"
+        transitions:
+          - to: in_progress
+            trigger: "worker starts work"
+          - to: cancelled
+            trigger: "sender cancels"
+      in_progress:
+        description: "Worker actively working"
+        transitions:
+          - to: review
+            trigger: "worker submits for review"
+          - to: cancelled
+            trigger: "sender cancels"
+      review:
+        description: "QA reviewing deliverables"
+        transitions:
+          - to: passed
+            trigger: "QA verdict = PASS"
+          - to: failed
+            trigger: "QA verdict = FAIL"
+      passed:
+        description: "Contract completed successfully"
+        terminal: true
+      failed:
+        description: "QA rejected deliverables"
+        transitions:
+          - to: in_progress
+            trigger: "worker re-assigned to fix issues (if failure_count < max_failures)"
+          - to: cancelled
+            trigger: "max_failures reached, manager decides to cancel"
+      cancelled:
+        description: "Contract cancelled"
+        terminal: true
+
+
+# =============================================================================
+# DELIVERY GUARANTEES
+# =============================================================================
+
+delivery:
+  retry_policy:
+    max_retries: 3
+    retry_interval_seconds: [5, 15, 60]  # exponential backoff
+    on_final_failure: "mark mail as 'failed', alert sender, log to mail_rejections"
+
+  ordering:
+    guarantee: "per-sender ordered"
+    description: >
+      Mails from the same sender are delivered in order.
+      Mails from different senders have no ordering guarantee.
+
+  durability:
+    description: >
+      All mails are persisted to PostgreSQL before delivery confirmation.
+      A mail is considered 'sent' only after successful database write.
+      Delivery to recipient inbox happens after persistence.
+
+  idempotency:
+    description: >
+      Mail IDs are unique. Duplicate delivery attempts (same ID) are silently ignored.
+      The recipient sees each mail exactly once.
+
+
+# =============================================================================
+# AGENT INBOX API
+# =============================================================================
+
+inbox_api:
+  description: >
+    Each agent has a virtual inbox (PostgreSQL query, not filesystem).
+    Agents read their inbox through the read_inbox tool (implicitly available to all agents).
+
+  operations:
+
+    list_inbox:
+      description: "List unread mails in inbox"
+      query: "SELECT * FROM mails WHERE to_agent = {caller.id} AND status = 'delivered' ORDER BY priority DESC, created_at ASC"
+      returns: "list of mail summaries (id, from, type, subject, priority, created_at)"
+
+    read_mail:
+      description: "Read a specific mail and mark as read"
+      query: "SELECT * FROM mails WHERE id = {mail_id} AND to_agent = {caller.id}"
+      side_effect: "UPDATE mails SET status = 'read', read_at = NOW() WHERE id = {mail_id}"
+      validation: "mail.to_agent MUST equal caller.id (agents cannot read others' mail)"
+
+    list_sent:
+      description: "List mails sent by this agent"
+      query: "SELECT * FROM mails WHERE from_agent = {caller.id} ORDER BY created_at DESC"
+
+    mail_thread:
+      description: "Get full mail thread by reply_to chain"
+      query: "Recursive CTE following reply_to chain"
+      validation: "caller must be sender or receiver of at least one mail in thread"
+
+
+# =============================================================================
+# MONITORING & ALERTS
+# =============================================================================
+
+monitoring:
+
+  rejection_alert:
+    description: "Alert when rejection rate exceeds threshold"
+    threshold: "5 rejections from same agent within 1 hour"
+    action: "Alert agent's manager and CEO"
+    severity: high
+
+  delivery_latency:
+    description: "Monitor mail delivery latency"
+    threshold: "delivery_at - created_at > 5 seconds"
+    action: "Log warning, investigate if persistent"
+
+  unread_escalation:
+    description: "Alert when escalation mails go unread"
+    threshold: "30 minutes for high/critical, 2 hours for medium, 8 hours for low"
+    action: "Notify recipient's superior"
+
+  contract_deadline:
+    description: "Alert when contract deadline approaches"
+    threshold: "24 hours before deadline for active contracts"
+    action: "Notify contract assignee and their manager"
+
+  suspicious_patterns:
+    description: "Detect potential abuse patterns"
+    patterns:
+      - "Same agent rejected 3+ times in 10 minutes (possible boundary probing)"
+      - "Agent sending mails at unusually high rate (possible spam)"
+      - "Agent attempting to contact same blocked recipient repeatedly"
+    action: "Alert IT Manager and log for audit"

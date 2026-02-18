@@ -1,0 +1,983 @@
+# NEXUS AI-Team Role Definitions
+# Machine-readable role definitions for LangGraph tool binding
+# Version: 1.0
+# Date: 2026-02-19
+# Contract: CEO-002
+#
+# IMPORTANT: This file is the SINGLE SOURCE OF TRUTH for:
+#   - Tool binding (which tools each agent can call)
+#   - Communication routing (who can contact whom)
+#   - File scope enforcement (what directories each agent can access)
+#   - Constraint enforcement (what each agent is explicitly forbidden from doing)
+#
+# Any change to this file MUST be authorized by HR Manager with a CEO contract.
+# The LangGraph runtime reads this file at agent creation time.
+
+version: "1.0"
+schema: "nexus-roles-v1"
+
+# =============================================================================
+# ROLE DEFINITIONS
+# =============================================================================
+
+roles:
+
+  # ---------------------------------------------------------------------------
+  # CEO — Level 1, Executive
+  # ---------------------------------------------------------------------------
+  ceo:
+    display_name: "CEO"
+    level: 1
+    type: executive
+    department: executive
+    reports_to: board  # human user, outside agent system
+    model_tier: capable  # uses most powerful model
+
+    tools:
+      - generate_contract
+      - send_mail
+      - write_note
+      - read_reports
+
+    allowed_contacts:
+      - it_manager
+      - hr_manager
+      - product_manager
+
+    # No conditional contacts for CEO — all contacts are unconditional
+
+    file_scope:
+      read:
+        - company/contracts/
+        - reports/
+        - company/org.yaml
+        - agents/ceo/
+      write:
+        - agents/ceo/notes/
+        - agents/ceo/MEMORY.md
+
+    constraints:
+      deny_tools:
+        - read_file
+        - write_file
+        - git_*
+        - docker_*
+        - run_test
+        - run_linter
+        - web_search
+      deny_actions:
+        - "Read or write any code files (*.py, *.ts, *.js, *.go, etc.)"
+        - "Contact any worker-level agent directly"
+        - "Execute shell commands"
+        - "Modify org.yaml or chain-of-command.yaml"
+        - "Access .env, credentials, or secret files"
+        - "Merge or close pull requests"
+        - "Deploy to any environment"
+
+  # ---------------------------------------------------------------------------
+  # IT Manager — Level 2, Manager
+  # ---------------------------------------------------------------------------
+  it_manager:
+    display_name: "IT Manager"
+    level: 2
+    type: manager
+    department: it
+    reports_to: ceo
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - create_contract
+      - read_reports
+      - read_code          # read-only access to codebase
+      - review_pr
+      - manage_tools
+      - assign_task
+      - write_note
+      - read_tech_reports
+      - approve_deployment
+      - request_budget
+      - escalate
+
+    allowed_contacts:
+      - ceo
+      - backend_worker
+      - frontend_worker
+      - devops_worker
+      - qa_worker
+
+    conditional_contacts:
+      hr_manager:
+        allowed_mail_types:
+          - staffing_request
+          - info
+        description: "Cross-department: request personnel from HR"
+      product_manager:
+        allowed_mail_types:
+          - tech_review
+          - info
+        description: "Cross-department: technical feasibility feedback"
+
+    file_scope:
+      read:
+        - reports/tech/
+        - reports/qa/
+        - company/contracts/
+        - equipment/
+        - agents/backend_worker/WORKSPACE/   # read-only oversight
+        - agents/frontend_worker/WORKSPACE/
+        - agents/devops_worker/WORKSPACE/
+        - agents/qa_worker/WORKSPACE/
+        - agents/it_manager/
+      write:
+        - agents/it_manager/notes/
+        - agents/it_manager/MEMORY.md
+        - reports/tech/
+
+    constraints:
+      deny_tools:
+        - write_file         # cannot write code directly
+        - git_commit
+        - git_push
+        - docker_deploy      # cannot deploy directly, only approve
+        - create_agent_jd
+        - update_org_chart
+      deny_actions:
+        - "Write code directly (delegate to workers)"
+        - "Deploy to production directly (approve DevOps to do it)"
+        - "Bypass QA to merge code"
+        - "Modify org.yaml or chain-of-command.yaml"
+        - "Access HR personnel files"
+        - "Contact Research Worker directly"
+
+  # ---------------------------------------------------------------------------
+  # HR Manager — Level 2, Manager
+  # ---------------------------------------------------------------------------
+  hr_manager:
+    display_name: "HR Manager"
+    level: 2
+    type: manager
+    department: hr
+    reports_to: ceo
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - create_contract
+      - create_agent_jd
+      - update_agent_jd
+      - deactivate_agent
+      - update_org_chart
+      - read_reports
+      - write_note
+      - list_agents
+      - escalate
+
+    allowed_contacts:
+      - ceo
+
+    conditional_contacts:
+      it_manager:
+        allowed_mail_types:
+          - tool_request
+          - info
+        description: "Cross-department: request tool setup for new agents"
+      product_manager:
+        allowed_mail_types:
+          - staffing_request
+          - info
+        description: "Cross-department: confirm personnel requirements"
+
+    file_scope:
+      read:
+        - company/agents/          # read all agent JDs
+        - company/org.yaml
+        - company/chain-of-command.yaml
+        - company/departments/
+        - reports/hr/
+        - agents/hr_manager/
+      write:
+        - company/agents/          # create/modify JDs
+        - company/org.yaml         # ONLY role that can modify org
+        - company/chain-of-command.yaml  # ONLY role that can modify CoC
+        - company/departments/
+        - reports/hr/
+        - agents/hr_manager/MEMORY.md
+
+    constraints:
+      deny_tools:
+        - read_file
+        - write_file
+        - git_*
+        - docker_*
+        - run_test
+        - run_linter
+        - read_code
+        - manage_tools
+      deny_actions:
+        - "Read or write any code files"
+        - "Access technical reports in detail"
+        - "Contact any worker directly"
+        - "Modify equipment configuration"
+        - "Execute deployments"
+        - "Access .env or credential files"
+
+    special_privileges:
+      - "ONLY agent authorized to modify org.yaml"
+      - "ONLY agent authorized to modify chain-of-command.yaml"
+      - "All org changes MUST reference a CEO contract ID as authorization"
+
+  # ---------------------------------------------------------------------------
+  # Product Manager — Level 2, Manager
+  # ---------------------------------------------------------------------------
+  product_manager:
+    display_name: "Product Manager"
+    level: 2
+    type: manager
+    department: product
+    reports_to: ceo
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - create_contract
+      - write_prd
+      - manage_backlog
+      - read_reports
+      - write_note
+      - read_user_feedback
+      - prioritize_tasks
+      - escalate
+
+    allowed_contacts:
+      - ceo
+      - research_worker
+
+    conditional_contacts:
+      frontend_worker:
+        allowed_mail_types:
+          - requirement_clarification
+          - info
+        requires: active_contract  # must have an active contract linking PM and frontend
+        description: "Direct channel for UI requirement clarification"
+      it_manager:
+        allowed_mail_types:
+          - tech_review
+          - info
+        description: "Cross-department: request technical feasibility assessment"
+      hr_manager:
+        allowed_mail_types:
+          - staffing_request
+          - info
+        description: "Cross-department: request personnel"
+
+    file_scope:
+      read:
+        - company/contracts/
+        - reports/product/
+        - reports/research/
+        - backlog/
+        - docs/prd/
+        - agents/product_manager/
+      write:
+        - docs/prd/
+        - backlog/
+        - reports/product/
+        - agents/product_manager/notes/
+        - agents/product_manager/MEMORY.md
+
+    constraints:
+      deny_tools:
+        - read_file            # no direct code access
+        - write_file
+        - git_*
+        - docker_*
+        - run_test
+        - manage_tools
+        - read_code
+      deny_actions:
+        - "Read or write any code files"
+        - "Modify org configuration"
+        - "Execute technical operations"
+        - "Contact backend/devops/qa workers directly"
+        - "Access infrastructure or deployment configs"
+
+  # ---------------------------------------------------------------------------
+  # Backend Worker — Level 3, Worker
+  # ---------------------------------------------------------------------------
+  backend_worker:
+    display_name: "Backend Worker"
+    level: 3
+    type: worker
+    department: it
+    reports_to: it_manager
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - read_file
+      - write_file
+      - run_test
+      - git_commit
+      - git_push
+      - git_branch
+      - read_contract
+      - submit_report
+      - escalate
+
+    allowed_contacts:
+      - it_manager   # ONLY direct manager, no one else
+
+    file_scope:
+      read:
+        - agents/backend_worker/
+        - "{contract.workspace_scope}"  # dynamically set by active contract
+        - tests/
+      write:
+        - agents/backend_worker/MEMORY.md
+        - "{contract.workspace_scope}"
+        - tests/
+
+    constraints:
+      deny_tools:
+        - create_contract
+        - generate_contract
+        - docker_*
+        - manage_ci_config
+        - update_org_chart
+        - create_agent_jd
+        - manage_tools
+        - web_search
+      deny_actions:
+        - "Contact CEO or any other department"
+        - "Merge to main/master/production branch"
+        - "Modify CI/CD configuration"
+        - "Access .env, credentials, or secret files"
+        - "Modify other workers' files"
+        - "Read org configuration files"
+        - "Push to branches not assigned in current contract"
+
+    git_constraints:
+      allowed_branches: "{contract.assigned_branch}"  # set per contract
+      protected_branches:
+        - main
+        - master
+        - production
+        - staging
+      operations:
+        - commit
+        - push
+        - branch   # create feature branch only
+
+  # ---------------------------------------------------------------------------
+  # Frontend Worker — Level 3, Worker
+  # ---------------------------------------------------------------------------
+  frontend_worker:
+    display_name: "Frontend Worker"
+    level: 3
+    type: worker
+    department: it   # primary department
+    reports_to: it_manager  # primary manager
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - read_file
+      - write_file
+      - run_test
+      - git_commit
+      - git_push
+      - git_branch
+      - read_contract
+      - submit_report
+
+    allowed_contacts:
+      - it_manager   # primary manager
+
+    conditional_contacts:
+      product_manager:
+        allowed_mail_types:
+          - question
+        requires: active_contract
+        description: "UI requirement clarification during active task"
+
+    file_scope:
+      read:
+        - agents/frontend_worker/
+        - "{contract.workspace_scope}"
+        - tests/frontend/
+        - docs/prd/             # read PRDs for requirement context
+      write:
+        - agents/frontend_worker/MEMORY.md
+        - "{contract.workspace_scope}"
+        - tests/frontend/
+
+    constraints:
+      deny_tools:
+        - create_contract
+        - generate_contract
+        - docker_*
+        - manage_ci_config
+        - update_org_chart
+        - manage_tools
+        - web_search
+      deny_actions:
+        - "Contact CEO"
+        - "Modify backend code"
+        - "Merge to main/master/production branch"
+        - "Access database configuration"
+        - "Modify other workers' files"
+
+    git_constraints:
+      allowed_branches: "{contract.assigned_branch}"
+      protected_branches:
+        - main
+        - master
+        - production
+        - staging
+
+  # ---------------------------------------------------------------------------
+  # DevOps Worker — Level 3, Worker
+  # ---------------------------------------------------------------------------
+  devops_worker:
+    display_name: "DevOps Worker"
+    level: 3
+    type: worker
+    department: it
+    reports_to: it_manager
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - read_file
+      - write_file
+      - docker_build
+      - docker_deploy
+      - manage_ci_config
+      - run_health_check
+      - read_logs
+      - read_contract
+      - submit_report
+      - escalate
+
+    allowed_contacts:
+      - it_manager   # ONLY direct manager
+
+    file_scope:
+      read:
+        - agents/devops_worker/
+        - docker/
+        - docker-compose.yml
+        - Dockerfile
+        - .github/workflows/
+        - logs/
+        - equipment/
+      write:
+        - agents/devops_worker/MEMORY.md
+        - docker/
+        - docker-compose.yml
+        - Dockerfile
+        - .github/workflows/
+
+    constraints:
+      deny_tools:
+        - create_contract
+        - generate_contract
+        - git_commit           # no application code commits
+        - git_push
+        - update_org_chart
+        - manage_tools
+        - web_search
+      deny_actions:
+        - "Contact CEO or any other department"
+        - "Modify application source code (non-infra)"
+        - "Access production database directly"
+        - "Modify org configuration"
+        - "Deploy to production without IT Manager approval"
+        - "Access .env files with production secrets"
+
+    deployment_constraints:
+      production:
+        requires: deployment_approval  # mail of type deployment_approval from it_manager
+        validation: "Check for active deployment_approval mail from it_manager"
+      staging:
+        requires: null  # can deploy to staging freely
+      development:
+        requires: null
+
+  # ---------------------------------------------------------------------------
+  # QA Worker — Level 3, Worker
+  # ---------------------------------------------------------------------------
+  qa_worker:
+    display_name: "QA Worker"
+    level: 3
+    type: worker
+    department: it
+    reports_to: it_manager
+    model_tier: fast  # QA tasks are typically less complex
+
+    tools:
+      - send_mail
+      - read_file          # READ ONLY — enforced at tool level
+      - run_test
+      - run_linter
+      - write_verdict
+      - read_contract
+      - submit_report
+      - escalate
+
+    allowed_contacts:
+      - it_manager   # ONLY direct manager
+
+    file_scope:
+      read:
+        - agents/qa_worker/
+        - "{contract.workspace_scope}"    # code under review (read-only)
+        - tests/
+        - reports/qa/
+      write:
+        - agents/qa_worker/MEMORY.md
+        - tests/                          # can write test files
+        - reports/qa/                     # can write QA reports/verdicts
+
+    constraints:
+      deny_tools:
+        - write_file           # cannot write to arbitrary locations
+        - create_contract
+        - generate_contract
+        - git_commit           # cannot modify reviewed code
+        - git_push
+        - docker_*
+        - manage_ci_config
+        - manage_tools
+        - web_search
+      deny_actions:
+        - "Write any file outside tests/ and reports/qa/"
+        - "Contact CEO or any other department"
+        - "Modify source code under review"
+        - "Merge or close pull requests"
+        - "Modify CI/CD configuration"
+        - "Approve own code"
+
+    # QA has a special write_to_dirs constraint instead of general write_file
+    write_restricted_dirs:
+      - tests/
+      - reports/qa/
+
+  # ---------------------------------------------------------------------------
+  # Research Worker — Level 3, Worker
+  # ---------------------------------------------------------------------------
+  research_worker:
+    display_name: "Research Worker"
+    level: 3
+    type: worker
+    department: product
+    reports_to: product_manager
+    model_tier: balanced
+
+    tools:
+      - send_mail
+      - web_search
+      - read_url
+      - write_report
+      - read_contract
+      - submit_report
+
+    allowed_contacts:
+      - product_manager   # ONLY direct manager
+
+    file_scope:
+      read:
+        - agents/research_worker/
+        - reports/research/
+        - docs/
+      write:
+        - agents/research_worker/MEMORY.md
+        - reports/research/
+
+    constraints:
+      deny_tools:
+        - read_file
+        - write_file
+        - git_*
+        - docker_*
+        - run_test
+        - run_linter
+        - manage_tools
+        - create_contract
+        - manage_ci_config
+      deny_actions:
+        - "Read or write any code files"
+        - "Execute shell commands"
+        - "Access git repositories"
+        - "Contact any technical department personnel"
+        - "Access internal system configuration"
+        - "Modify anything outside reports/research/"
+
+
+# =============================================================================
+# TOOL DEFINITIONS (for reference by LangGraph tool binding)
+# =============================================================================
+
+tool_catalog:
+
+  # --- Executive Tools ---
+  generate_contract:
+    description: "Generate and dispatch a formal work contract"
+    category: executive
+    requires_level: 1   # CEO only
+    parameters:
+      to: {type: string, validation: "must be in caller.allowed_contacts AND target.level == 2"}
+      title: {type: string, max_length: 200}
+      body: {type: string, max_length: 20000}
+      priority: {type: enum, values: [low, medium, high, critical]}
+      deadline: {type: datetime}
+
+  # --- Communication Tools ---
+  send_mail:
+    description: "Send structured mail to authorized contacts"
+    category: communication
+    requires_level: any
+    parameters:
+      to: {type: string, validation: "must be in caller.allowed_contacts or caller.conditional_contacts"}
+      type: {type: enum, values: [contract, report, approval_request, info, escalation, question, verdict, staffing_request, tool_request, tech_review, requirement_clarification, deployment_approval]}
+      subject: {type: string, max_length: 200}
+      body: {type: string, max_length: 10000}
+      priority: {type: enum, values: [low, medium, high, critical], default: medium}
+      attachments: {type: "list[filepath]", validation: "each path must be in caller.file_scope.read"}
+      reply_to: {type: string, optional: true}
+      contract_ref: {type: string, optional: true}
+    enforced_overrides:
+      from: "SYSTEM_SET:caller_agent_id"  # cannot be spoofed
+
+  escalate:
+    description: "Escalate an issue to direct superior"
+    category: communication
+    requires_level: [2, 3]  # managers and workers
+    parameters:
+      subject: {type: string}
+      body: {type: string}
+      severity: {type: enum, values: [low, medium, high, critical]}
+      contract_ref: {type: string, optional: true}
+    routing: "auto-route to caller.reports_to"
+
+  # --- Management Tools ---
+  create_contract:
+    description: "Create a work contract for a subordinate"
+    category: management
+    requires_level: 2   # managers only
+    parameters:
+      to: {type: string, validation: "must be in caller.allowed_contacts AND target.reports_to == caller.id"}
+      title: {type: string}
+      body: {type: string}
+      priority: {type: enum, values: [low, medium, high, critical]}
+      deadline: {type: datetime}
+      workspace_scope: {type: string, description: "Directory scope for worker file access"}
+      assigned_branch: {type: string, optional: true, description: "Git branch assigned to worker"}
+
+  assign_task:
+    description: "Quick task assignment (lighter than full contract)"
+    category: management
+    requires_level: 2
+    parameters:
+      to: {type: string, validation: "must be subordinate"}
+      description: {type: string}
+      priority: {type: enum, values: [low, medium, high]}
+
+  approve_deployment:
+    description: "Approve a deployment request from DevOps"
+    category: management
+    requires_level: 2
+    allowed_roles: [it_manager]
+    parameters:
+      deployment_id: {type: string}
+      environment: {type: enum, values: [staging, production]}
+      notes: {type: string, optional: true}
+
+  request_budget:
+    description: "Request budget approval from CEO"
+    category: management
+    requires_level: 2
+    parameters:
+      amount: {type: number}
+      purpose: {type: string}
+      justification: {type: string}
+
+  # --- HR Tools ---
+  create_agent_jd:
+    description: "Create a new agent JD file"
+    category: hr
+    allowed_roles: [hr_manager]
+    parameters:
+      agent_id: {type: string}
+      role: {type: string}
+      department: {type: string}
+      jd_content: {type: string}
+    output: "company/agents/{agent_id}/JD.md"
+
+  update_agent_jd:
+    description: "Update an existing agent JD"
+    category: hr
+    allowed_roles: [hr_manager]
+    parameters:
+      agent_id: {type: string}
+      jd_content: {type: string}
+    validation: "agent_id must exist in company/agents/"
+
+  deactivate_agent:
+    description: "Deactivate an agent (soft delete)"
+    category: hr
+    allowed_roles: [hr_manager]
+    parameters:
+      agent_id: {type: string}
+      reason: {type: string}
+      contract_ref: {type: string, description: "CEO contract authorizing deactivation"}
+
+  update_org_chart:
+    description: "Modify org.yaml and chain-of-command.yaml"
+    category: hr
+    allowed_roles: [hr_manager]
+    parameters:
+      changes: {type: object}
+      contract_ref: {type: string, description: "CEO contract authorizing org change"}
+    validation: "contract_ref must reference a valid, active CEO contract"
+
+  list_agents:
+    description: "List all registered agents and their status"
+    category: hr
+    allowed_roles: [hr_manager]
+
+  # --- Product Tools ---
+  write_prd:
+    description: "Write a Product Requirements Document"
+    category: product
+    allowed_roles: [product_manager]
+    parameters:
+      title: {type: string}
+      content: {type: string}
+    output: "docs/prd/{timestamp}-{title_slug}.md"
+
+  manage_backlog:
+    description: "Add, update, or prioritize backlog items"
+    category: product
+    allowed_roles: [product_manager]
+    parameters:
+      action: {type: enum, values: [add, update, remove, prioritize]}
+      item: {type: object}
+
+  read_user_feedback:
+    description: "Read user feedback and feature requests"
+    category: product
+    allowed_roles: [product_manager]
+
+  prioritize_tasks:
+    description: "Set priority ordering for backlog items"
+    category: product
+    allowed_roles: [product_manager]
+
+  # --- Development Tools ---
+  read_file:
+    description: "Read a file within allowed scope"
+    category: development
+    requires_level: [2, 3]
+    parameters:
+      path: {type: string, validation: "must be within caller.file_scope.read"}
+
+  write_file:
+    description: "Write a file within allowed scope"
+    category: development
+    requires_level: 3   # workers only
+    parameters:
+      path: {type: string, validation: "must be within caller.file_scope.write"}
+      content: {type: string}
+
+  read_code:
+    description: "Read source code files (read-only)"
+    category: development
+    allowed_roles: [it_manager]
+    parameters:
+      path: {type: string}
+
+  run_test:
+    description: "Execute test suite"
+    category: development
+    allowed_roles: [backend_worker, frontend_worker, qa_worker]
+    parameters:
+      test_path: {type: string, optional: true}
+      test_filter: {type: string, optional: true}
+
+  run_linter:
+    description: "Run code linter/static analysis"
+    category: qa
+    allowed_roles: [qa_worker]
+    parameters:
+      path: {type: string}
+      config: {type: string, optional: true}
+
+  write_verdict:
+    description: "Write QA verdict (PASS/FAIL with details)"
+    category: qa
+    allowed_roles: [qa_worker]
+    parameters:
+      contract_ref: {type: string}
+      verdict: {type: enum, values: [PASS, FAIL]}
+      summary: {type: string}
+      details: {type: string}
+      issues: {type: "list[object]", optional: true}
+    output: "reports/qa/{contract_ref}-verdict.md"
+
+  # --- Git Tools ---
+  git_commit:
+    description: "Commit changes to current branch"
+    category: git
+    allowed_roles: [backend_worker, frontend_worker]
+    parameters:
+      message: {type: string}
+      files: {type: "list[string]"}
+    validation: "current branch must match contract.assigned_branch"
+
+  git_push:
+    description: "Push commits to remote"
+    category: git
+    allowed_roles: [backend_worker, frontend_worker]
+    validation: "target branch must NOT be in protected_branches list"
+
+  git_branch:
+    description: "Create a new feature branch"
+    category: git
+    allowed_roles: [backend_worker, frontend_worker]
+    parameters:
+      name: {type: string}
+      from_branch: {type: string, default: main}
+
+  review_pr:
+    description: "Review a pull request"
+    category: git
+    allowed_roles: [it_manager]
+    parameters:
+      pr_number: {type: number}
+      action: {type: enum, values: [approve, request_changes, comment]}
+      body: {type: string}
+
+  # --- DevOps Tools ---
+  docker_build:
+    description: "Build a Docker image"
+    category: devops
+    allowed_roles: [devops_worker]
+    parameters:
+      dockerfile: {type: string, default: Dockerfile}
+      tag: {type: string}
+      context: {type: string, default: "."}
+
+  docker_deploy:
+    description: "Deploy a Docker image to target environment"
+    category: devops
+    allowed_roles: [devops_worker]
+    parameters:
+      image: {type: string}
+      environment: {type: enum, values: [development, staging, production]}
+    validation: "if environment == production, requires deployment_approval from it_manager"
+
+  manage_ci_config:
+    description: "Modify CI/CD pipeline configuration"
+    category: devops
+    allowed_roles: [devops_worker]
+    parameters:
+      path: {type: string, validation: "must be in .github/workflows/"}
+      content: {type: string}
+
+  run_health_check:
+    description: "Run system health check"
+    category: devops
+    allowed_roles: [devops_worker]
+
+  read_logs:
+    description: "Read system/application logs"
+    category: devops
+    allowed_roles: [devops_worker]
+    parameters:
+      log_path: {type: string, validation: "must be in logs/"}
+      lines: {type: number, default: 100}
+
+  # --- Tools for IT Manager ---
+  manage_tools:
+    description: "Install, remove, or configure tools in equipment registry"
+    category: it
+    allowed_roles: [it_manager]
+    parameters:
+      action: {type: enum, values: [install, remove, configure, list]}
+      tool_id: {type: string, optional: true}
+      config: {type: object, optional: true}
+
+  read_tech_reports:
+    description: "Read technical reports from all tech workers"
+    category: it
+    allowed_roles: [it_manager]
+    parameters:
+      department: {type: string, optional: true}
+      date_range: {type: string, optional: true}
+
+  # --- Research Tools ---
+  web_search:
+    description: "Search the web for information"
+    category: research
+    allowed_roles: [research_worker]
+    parameters:
+      query: {type: string}
+      max_results: {type: number, default: 10}
+
+  read_url:
+    description: "Read and extract content from a URL"
+    category: research
+    allowed_roles: [research_worker]
+    parameters:
+      url: {type: string}
+
+  write_report:
+    description: "Write a research report"
+    category: research
+    allowed_roles: [research_worker]
+    parameters:
+      title: {type: string}
+      content: {type: string}
+    output: "reports/research/{timestamp}-{title_slug}.md"
+
+  # --- Common Worker Tools ---
+  read_contract:
+    description: "Read contracts assigned to the caller"
+    category: common
+    requires_level: 3  # workers
+    parameters:
+      contract_id: {type: string, optional: true}
+    scope: "only contracts where to_agent == caller.id"
+
+  submit_report:
+    description: "Submit a work completion report to direct manager"
+    category: common
+    requires_level: 3  # workers
+    parameters:
+      contract_ref: {type: string}
+      status: {type: enum, values: [completed, blocked, in_progress]}
+      summary: {type: string}
+      details: {type: string}
+      artifacts: {type: "list[filepath]", optional: true}
+    routing: "auto-route to caller.reports_to"
+
+  # --- Notes (Managers and CEO) ---
+  write_note:
+    description: "Write a personal note or decision record"
+    category: common
+    requires_level: [1, 2]
+    parameters:
+      title: {type: string}
+      content: {type: string}
+    output: "agents/{caller.id}/notes/{timestamp}-{title_slug}.md"
+
+  read_reports:
+    description: "Read reports from subordinates"
+    category: common
+    requires_level: [1, 2]
+    parameters:
+      department: {type: string, optional: true}
+      report_type: {type: enum, values: [status, completion, escalation, cost, qa, research], optional: true}
+      date_range: {type: string, optional: true}
