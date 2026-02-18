@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS AI-Team — Chain of Command</title>
+<style>
+  :root {
+    --bg-deep: #05050f;
+    --bg-card: #0d0d20;
+    --bg-card2: #12122a;
+    --border: rgba(255,255,255,0.07);
+    --gold: #FFD700;
+    --gold-glow: rgba(255,215,0,0.35);
+    --blue: #4169E1;
+    --blue-glow: rgba(65,105,225,0.35);
+    --green: #00C853;
+    --green-glow: rgba(0,200,83,0.3);
+    --cyan: #00BCD4;
+    --cyan-glow: rgba(0,188,212,0.3);
+    --purple: #9C27B0;
+    --purple-glow: rgba(156,39,176,0.3);
+    --text: #e8e8f0;
+    --text-muted: #8888aa;
+    --connector: rgba(100,100,180,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    padding: 48px 24px 32px;
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    display: block;
+    width: 200px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--blue), transparent);
+    margin: 24px auto 0;
+  }
+  .header-badge {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--blue);
+    border: 1px solid rgba(65,105,225,0.4);
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 18px;
+  }
+  .header h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #fff 0%, #aaaacc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header p {
+    color: var(--text-muted);
+    font-size: 15px;
+    margin-top: 10px;
+  }
+
+  /* ── Org Chart ── */
+  .org-section {
+    padding: 0 24px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .org-tree {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+  }
+
+  /* connector lines */
+  .v-line {
+    width: 2px;
+    height: 36px;
+    background: linear-gradient(180deg, var(--connector) 0%, transparent 100%);
+    position: relative;
+    animation: flowDown 2s linear infinite;
+  }
+  .v-line::after {
+    content: '';
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--blue);
+    left: -2px;
+    animation: dotFlow 2s linear infinite;
+    box-shadow: 0 0 8px var(--blue);
+  }
+  @keyframes dotFlow {
+    0%   { top: -3px; opacity: 0; }
+    20%  { opacity: 1; }
+    80%  { opacity: 1; }
+    100% { top: calc(100% - 3px); opacity: 0; }
+  }
+  @keyframes flowDown {
+    0%,100% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+  }
+
+  .h-connector {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    margin-bottom: 0;
+  }
+  .h-connector::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 2px; height: 36px;
+    background: linear-gradient(180deg, var(--connector), transparent);
+  }
+
+  /* ── Row for level 2 ── */
+  .level2-row {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+    padding-top: 36px;
+    position: relative;
+  }
+  .level2-row::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 2px; height: 36px;
+    background: linear-gradient(180deg, var(--connector), rgba(100,100,180,0.15));
+  }
+  /* The horizontal bar connecting departments */
+  .level2-row::after {
+    content: '';
+    position: absolute;
+    top: 36px;
+    left: calc(50% - 280px);
+    right: calc(50% - 280px);
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--connector), var(--connector), transparent);
+    animation: flowSide 3s linear infinite;
+  }
+  @keyframes flowSide {
+    0%,100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ── Node Card ── */
+  .node {
+    cursor: pointer;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    padding: 20px 24px;
+    text-align: center;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+  }
+  .node:hover { transform: translateY(-3px); }
+
+  .node-board {
+    width: 200px;
+    border-color: rgba(255,215,0,0.3);
+    background: linear-gradient(135deg, #1a1500 0%, #0d0d20 100%);
+  }
+  .node-board:hover { box-shadow: 0 0 32px var(--gold-glow), 0 8px 32px rgba(0,0,0,0.4); }
+
+  .node-ceo {
+    width: 300px;
+    border-color: rgba(65,105,225,0.35);
+    background: linear-gradient(135deg, #080e28 0%, #0d0d20 100%);
+  }
+  .node-ceo:hover { box-shadow: 0 0 32px var(--blue-glow), 0 8px 32px rgba(0,0,0,0.4); }
+
+  .node-ceo-asst {
+    width: 220px;
+    border-color: rgba(65,105,225,0.2);
+    background: linear-gradient(135deg, #06091e 0%, #0d0d20 100%);
+    opacity: 0.7;
+  }
+  .node-ceo-asst:hover { opacity: 1; box-shadow: 0 0 20px var(--blue-glow); }
+
+  .node-hr {
+    width: 240px;
+    border-color: rgba(0,200,83,0.3);
+    background: linear-gradient(135deg, #001a07 0%, #0d0d20 100%);
+  }
+  .node-hr:hover { box-shadow: 0 0 32px var(--green-glow), 0 8px 32px rgba(0,0,0,0.4); }
+
+  .node-it {
+    width: 240px;
+    border-color: rgba(0,188,212,0.3);
+    background: linear-gradient(135deg, #001318 0%, #0d0d20 100%);
+  }
+  .node-it:hover { box-shadow: 0 0 32px var(--cyan-glow), 0 8px 32px rgba(0,0,0,0.4); }
+
+  .node-dynamic {
+    width: 220px;
+    border-color: rgba(156,39,176,0.3);
+    background: linear-gradient(135deg, #100018 0%, #0d0d20 100%);
+    border-style: dashed;
+  }
+  .node-dynamic:hover { box-shadow: 0 0 32px var(--purple-glow), 0 8px 32px rgba(0,0,0,0.4); }
+
+  .node-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+    line-height: 1;
+  }
+  .node-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+  }
+  .node-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .node-badge {
+    display: inline-block;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .badge-active { background: rgba(0,200,83,0.15); color: #00C853; border: 1px solid rgba(0,200,83,0.25); }
+  .badge-planned { background: rgba(156,39,176,0.15); color: #CE93D8; border: 1px solid rgba(156,39,176,0.25); }
+  .badge-builtin { background: rgba(65,105,225,0.15); color: #90a8f8; border: 1px solid rgba(65,105,225,0.25); }
+
+  /* Selected glow ring */
+  .node.selected::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 18px;
+    border: 2px solid var(--node-color, var(--blue));
+    animation: pulse-ring 1.5s ease-in-out infinite;
+    box-shadow: 0 0 20px var(--node-glow, var(--blue-glow));
+  }
+  @keyframes pulse-ring {
+    0%,100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  /* CEO row with assistant branch */
+  .ceo-cluster {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    justify-content: center;
+  }
+  .ceo-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding-top: 60px;
+  }
+  .ceo-side-line {
+    width: 60px; height: 2px;
+    background: linear-gradient(90deg, var(--connector), transparent);
+    align-self: flex-start;
+    margin-top: -1px;
+  }
+
+  /* ── Detail Panel ── */
+  .panel-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .panel-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .panel {
+    background: var(--bg-card2);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 36px;
+    max-width: 560px;
+    width: calc(100% - 48px);
+    position: relative;
+    transform: scale(0.92) translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .panel-overlay.open .panel {
+    transform: scale(1) translateY(0);
+  }
+  .panel-close {
+    position: absolute;
+    top: 16px; right: 20px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-muted);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .panel-close:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .panel-icon { font-size: 36px; }
+  .panel-title { font-size: 22px; font-weight: 800; }
+  .panel-level { font-size: 12px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+  .panel-desc {
+    font-size: 14px;
+    color: #b0b0cc;
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .panel-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .panel-box h4 {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .panel-box h4 span { font-size: 14px; }
+  .panel-box ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .panel-box li {
+    font-size: 13px;
+    color: #c8c8e0;
+    padding-left: 12px;
+    position: relative;
+    line-height: 1.5;
+  }
+  .panel-box li::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    color: var(--node-color, var(--blue));
+  }
+  .panel-perspectives {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .panel-perspectives h4 {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .perspective-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .perspective-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 3px 8px;
+    border-radius: 6px;
+    min-width: 80px;
+    text-align: center;
+  }
+  .label-ceo { background: rgba(65,105,225,0.2); color: #90a8f8; }
+  .label-peer { background: rgba(0,200,83,0.15); color: #80e8a0; }
+  .perspective-text { font-size: 13px; color: #b8b8d0; line-height: 1.5; }
+  .panel-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    animation: blink 2s ease infinite;
+  }
+  .status-active { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-planned { background: var(--purple); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── How It Works Section ── */
+  .section-title {
+    text-align: center;
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    padding-top: 20px;
+  }
+  .section-sub {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+  .how-section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 60px;
+  }
+
+  .flow-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+    position: relative;
+  }
+  .flow-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .flow-card:hover { transform: translateY(-2px); }
+  .flow-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--card-color, var(--blue));
+    opacity: 0.6;
+  }
+  .flow-card-num {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .flow-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--card-color, #fff);
+  }
+  .flow-card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--connector);
+    font-size: 20px;
+    align-self: center;
+  }
+
+  /* ── Department Creation Timeline ── */
+  .timeline-section {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+  .timeline-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+  }
+  .timeline-title { font-size: 20px; font-weight: 800; }
+  .timeline-example {
+    font-size: 12px;
+    color: #CE93D8;
+    background: rgba(156,39,176,0.12);
+    border: 1px solid rgba(156,39,176,0.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  .timeline-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, rgba(156,39,176,0.25), rgba(65,105,225,0.2));
+    border: 1px solid rgba(156,39,176,0.4);
+    color: #CE93D8;
+    padding: 10px 22px;
+    border-radius: 24px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
+    margin-bottom: 28px;
+    letter-spacing: 0.3px;
+  }
+  .timeline-btn:hover {
+    background: linear-gradient(135deg, rgba(156,39,176,0.4), rgba(65,105,225,0.3));
+    box-shadow: 0 0 20px var(--purple-glow);
+    transform: translateY(-1px);
+  }
+  .timeline-btn .btn-icon { font-size: 16px; transition: transform 0.3s; }
+  .timeline-btn.playing .btn-icon { animation: spin 1.5s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px; top: 8px; bottom: 8px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--purple), var(--blue), var(--green));
+    opacity: 0.3;
+  }
+
+  .timeline-step {
+    position: relative;
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateX(-12px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .timeline-step.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .timeline-dot {
+    position: absolute;
+    left: -28px; top: 14px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--step-color, var(--purple));
+    background: var(--bg-deep);
+    box-shadow: 0 0 10px var(--step-glow, var(--purple-glow));
+  }
+  .timeline-step.visible .timeline-dot {
+    background: var(--step-color, var(--purple));
+  }
+  .timeline-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--step-color, var(--purple));
+    border-radius: 0 12px 12px 0;
+    padding: 14px 18px;
+  }
+  .timeline-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .step-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--step-color, var(--purple));
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .step-actor {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+  .step-action { font-size: 14px; font-weight: 600; color: var(--text); }
+  .step-detail { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+  /* ── Context Management ── */
+  .context-section {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+  .context-alert-demo {
+    background: var(--bg-card);
+    border: 1px solid rgba(255,165,0,0.25);
+    border-radius: 16px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .context-alert-demo::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+    animation: shimmer 3s linear infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .context-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .context-bar-container {
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    height: 24px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .context-bar {
+    height: 100%;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #00C853, #FFD700, #FF5722);
+    width: 85%;
+    position: relative;
+    animation: fillBar 3s ease-out forwards;
+    transform-origin: left;
+  }
+  @keyframes fillBar {
+    from { width: 0%; }
+    to { width: 85%; }
+  }
+  .context-bar-label {
+    position: absolute;
+    right: 8px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .context-alert-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,87,34,0.15);
+    border: 1px solid rgba(255,87,34,0.35);
+    color: #FF8A65;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    animation: alertPulse 2s ease infinite;
+  }
+  @keyframes alertPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,87,34,0); }
+    50% { box-shadow: 0 0 0 6px rgba(255,87,34,0.15); }
+  }
+  .context-flow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ctx-node {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .ctx-arrow {
+    color: var(--text-muted);
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 40px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  .footer span { color: var(--blue); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-deep); }
+  ::-webkit-scrollbar-thumb { background: rgba(65,105,225,0.3); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════ -->
+<div class="header">
+  <div class="header-badge">NEXUS AI-TEAM</div>
+  <h1>Chain of Command</h1>
+  <p>Organizational structure &amp; authority hierarchy for the autonomous AI workforce</p>
+</div>
+
+<!-- ═══════════════════════ ORG CHART ═══════════════════════ -->
+<div class="org-section">
+  <div class="org-tree">
+
+    <!-- Level 0: Board -->
+    <div class="node node-board" data-id="board"
+         style="--node-color:var(--gold);--node-glow:var(--gold-glow)">
+      <span class="node-icon">👑</span>
+      <div class="node-title" style="color:var(--gold)">Board of Directors</div>
+      <div class="node-subtitle">Human User Layer</div>
+      <span class="node-badge badge-active">Highest Authority</span>
+    </div>
+
+    <div class="v-line" style="height:48px"></div>
+
+    <!-- Level 1: CEO cluster -->
+    <div class="ceo-cluster">
+      <div class="node node-ceo" data-id="ceo"
+           style="--node-color:var(--blue);--node-glow:var(--blue-glow)">
+        <span class="node-icon">🤖</span>
+        <div class="node-title" style="color:#8ab4f8">CEO</div>
+        <div class="node-subtitle">Chief Executive Agent</div>
+        <span class="node-badge badge-active">Active</span>
+      </div>
+
+      <!-- Assistant branch -->
+      <div class="ceo-side">
+        <div style="display:flex;align-items:center;gap:0;margin-bottom:12px">
+          <div style="width:40px;height:2px;background:linear-gradient(90deg,transparent,var(--connector))"></div>
+          <div class="node node-ceo-asst" data-id="ceo-asst"
+               style="--node-color:var(--blue);--node-glow:var(--blue-glow)">
+            <span class="node-icon" style="font-size:20px">👤</span>
+            <div class="node-title" style="color:#6080d0;font-size:13px">CEO Assistants</div>
+            <div class="node-subtitle" style="font-size:10px">Overflow Delegation</div>
+            <span class="node-badge badge-planned">Spawn-on-Demand</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 2 row -->
+    <div class="level2-row">
+
+      <!-- HR Team -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;position:relative;padding-top:36px">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:36px;background:linear-gradient(180deg,var(--connector),transparent)"></div>
+        <div class="node node-hr" data-id="hr"
+             style="--node-color:var(--green);--node-glow:var(--green-glow)">
+          <span class="node-icon">🏢</span>
+          <div class="node-title" style="color:var(--green)">HR Team</div>
+          <div class="node-subtitle">People & Org Growth</div>
+          <span class="node-badge badge-builtin">Built-in</span>
+        </div>
+      </div>
+
+      <!-- IT Team -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;position:relative;padding-top:36px">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:36px;background:linear-gradient(180deg,var(--connector),transparent)"></div>
+        <div class="node node-it" data-id="it"
+             style="--node-color:var(--cyan);--node-glow:var(--cyan-glow)">
+          <span class="node-icon">⚙️</span>
+          <div class="node-title" style="color:var(--cyan)">IT Team</div>
+          <div class="node-subtitle">Tools & Infrastructure</div>
+          <span class="node-badge badge-builtin">Built-in</span>
+        </div>
+      </div>
+
+      <!-- Dynamic example -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;position:relative;padding-top:36px">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:36px;background:linear-gradient(180deg,var(--connector),transparent)"></div>
+        <div class="node node-dynamic" data-id="dynamic"
+             style="--node-color:var(--purple);--node-glow:var(--purple-glow)">
+          <span class="node-icon">✨</span>
+          <div class="node-title" style="color:#CE93D8">Marketing Team</div>
+          <div class="node-subtitle">Dynamic Department</div>
+          <span class="node-badge badge-planned">On-Demand</span>
+        </div>
+      </div>
+
+    </div>
+    <!-- end level2-row -->
+
+  </div>
+  <!-- end org-tree -->
+</div>
+
+<!-- ═══════════════════════ HOW IT WORKS ═══════════════════════ -->
+<div class="how-section">
+  <div class="section-title">How It Works</div>
+  <div class="section-sub">Task delegation and authority chain across every level</div>
+
+  <div class="flow-cards">
+    <div class="flow-card" style="--card-color:var(--gold)">
+      <div class="flow-card-num">Step 01</div>
+      <div class="flow-card-title">Board Issues Directive</div>
+      <div class="flow-card-desc">Human user states a goal, approves budget, or authorizes new infrastructure. Highest authority in the system.</div>
+    </div>
+    <div class="flow-card" style="--card-color:var(--blue)">
+      <div class="flow-card-num">Step 02</div>
+      <div class="flow-card-title">CEO Plans & Delegates</div>
+      <div class="flow-card-desc">CEO evaluates architecture, routes work to existing departments, or triggers new department creation. Never touches code directly.</div>
+    </div>
+    <div class="flow-card" style="--card-color:#a0a0e0">
+      <div class="flow-card-num">Step 03</div>
+      <div class="flow-card-title">Manager Executes</div>
+      <div class="flow-card-desc">Department manager takes contracts, runs solo or deploys workers. Manages QA loops internally before reporting up.</div>
+    </div>
+    <div class="flow-card" style="--card-color:var(--green)">
+      <div class="flow-card-num">Step 04</div>
+      <div class="flow-card-title">Workers & QA Loop</div>
+      <div class="flow-card-desc">Worker produces output → QA validates → PASS goes to next task, FAIL cycles back (max 3 rounds) before escalating.</div>
+    </div>
+    <div class="flow-card" style="--card-color:var(--gold)">
+      <div class="flow-card-num">Step 05</div>
+      <div class="flow-card-title">Report Back</div>
+      <div class="flow-card-desc">Results surface up the chain. CEO synthesizes cross-department updates into a clean summary for Board review.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TIMELINE ═══════════════════════ -->
+<div class="timeline-section">
+  <div class="timeline-header">
+    <div class="timeline-title">Department Creation Flow</div>
+    <div class="timeline-example">Example: XiaoHongShu Operations</div>
+  </div>
+
+  <button class="timeline-btn" id="playBtn" onclick="runTimeline()">
+    <span class="btn-icon" id="btnIcon">▶</span>
+    Animate Creation Flow
+  </button>
+
+  <div class="timeline" id="timeline">
+
+    <div class="timeline-step" data-step="0"
+         style="--step-color:var(--blue);--step-glow:var(--blue-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 1</span>
+          <span class="step-actor">CEO</span>
+        </div>
+        <div class="step-action">Identify capability gap</div>
+        <div class="step-detail">CEO receives user directive: "Set up XiaoHongShu account operations." Scans existing departments — no Marketing team exists.</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="1"
+         style="--step-color:var(--blue);--step-glow:var(--blue-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 2</span>
+          <span class="step-actor">CEO → PM</span>
+        </div>
+        <div class="step-action">Dispatch Project Manager</div>
+        <div class="step-detail">CEO spawns a temporary Project Manager agent: "Investigate full workflow for XiaoHongShu ops. Produce a project plan."</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="2"
+         style="--step-color:#a0a0e0;--step-glow:rgba(160,160,224,0.3)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 3</span>
+          <span class="step-actor">PM Research</span>
+        </div>
+        <div class="step-action">PM investigates requirements</div>
+        <div class="step-detail">PM determines: needs auto-login browser tool, content scheduling tool, Ubuntu server with GUI, 2 worker agents + 1 QA agent.</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="3"
+         style="--step-color:#a0a0e0;--step-glow:rgba(160,160,224,0.3)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 4</span>
+          <span class="step-actor">PM → CEO</span>
+        </div>
+        <div class="step-action">PM delivers project plan</div>
+        <div class="step-detail">Structured plan sent to CEO: tool list, agent JD specs, infrastructure requirements, estimated timeline, risk assessment.</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="4"
+         style="--step-color:var(--cyan);--step-glow:var(--cyan-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 5</span>
+          <span class="step-actor">CEO → IT</span>
+        </div>
+        <div class="step-action">IT tasked: source tools</div>
+        <div class="step-detail">CEO instructs IT Team: "Find and evaluate auto-login tool on GitHub. Find content scheduler. Assess system compatibility."</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="5"
+         style="--step-color:var(--green);--step-glow:var(--green-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 6</span>
+          <span class="step-actor">CEO → HR</span>
+        </div>
+        <div class="step-action">HR tasked: generate agent JDs</div>
+        <div class="step-detail">CEO instructs HR Team: "Generate JDs for Marketing Manager, Content Worker ×2, QA Agent ×1. Prepare onboarding contracts."</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="6"
+         style="--step-color:var(--gold);--step-glow:var(--gold-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 7</span>
+          <span class="step-actor">CEO → Board</span>
+        </div>
+        <div class="step-action">Board approval (if needed)</div>
+        <div class="step-detail">CEO surfaces to Board: "New server required for GUI operations. Estimated cost: $X/month. Approve?" Board approves or provides alternative.</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="7"
+         style="--step-color:var(--purple);--step-glow:var(--purple-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 8</span>
+          <span class="step-actor">CEO</span>
+        </div>
+        <div class="step-action">Marketing department goes live</div>
+        <div class="step-detail">Marketing Manager spawned with full tool suite. Department registered in org structure. Manager receives initial task contracts from CEO.</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="8"
+         style="--step-color:var(--purple);--step-glow:var(--purple-glow)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 9</span>
+          <span class="step-actor">Marketing Mgr</span>
+        </div>
+        <div class="step-action">Manager operates solo (light load)</div>
+        <div class="step-detail">Workload is manageable — Manager handles scheduling, posting, and monitoring without deploying workers. Efficient context usage.</div>
+      </div>
+    </div>
+
+    <div class="timeline-step" data-step="9"
+         style="--step-color:#FF8A65;--step-glow:rgba(255,138,101,0.3)">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="timeline-card-header">
+          <span class="step-num">Step 10</span>
+          <span class="step-actor">Context Alert!</span>
+        </div>
+        <div class="step-action">Context threshold hit → request staff</div>
+        <div class="step-detail">Manager context reaches 85% → triggers automatic HR request: "Spawn Content Worker to offload scheduling tasks." HR provisions agent.</div>
+      </div>
+    </div>
+
+  </div>
+  <!-- end timeline -->
+</div>
+
+<!-- ═══════════════════════ CONTEXT MANAGEMENT ═══════════════════════ -->
+<div class="context-section">
+  <div class="section-title">Context Management</div>
+  <div class="section-sub">How the system self-scales when agents approach capacity limits</div>
+
+  <div class="context-alert-demo">
+    <div class="context-title">
+      ⚠️ Marketing Manager — Context Status
+    </div>
+    <div class="context-bar-container">
+      <div class="context-bar">
+        <div class="context-bar-label">85% — Alert Threshold</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+      Agent working memory is near capacity. Handoff protocol initiated.
+    </div>
+    <div class="context-alert-chip">
+      <span>●</span> Context Alert Active
+    </div>
+    <div class="context-flow" style="flex-direction:column;gap:16px">
+      <!-- Row 1: Alert → Request → Provision -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="ctx-node" style="border-color:rgba(255,138,101,0.3);color:#FF8A65">
+          <strong>1.</strong> Marketing Mgr<br><small style="opacity:0.6">context 85% alert</small>
+        </div>
+        <div class="ctx-arrow">→</div>
+        <div class="ctx-node" style="border-color:rgba(0,200,83,0.3);color:var(--green)">
+          <strong>2.</strong> HR Team<br><small style="opacity:0.6">spawn request</small>
+        </div>
+        <div class="ctx-arrow">→</div>
+        <div class="ctx-node" style="border-color:rgba(65,105,225,0.3);color:#90a8f8">
+          <strong>3.</strong> New Worker<br><small style="opacity:0.6">provisioned</small>
+        </div>
+      </div>
+      <!-- Row 2: Training → Handoff → Cleanup → Back to Management -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="ctx-node" style="border-color:rgba(255,215,0,0.3);color:var(--gold)">
+          <strong>4.</strong> Manager Trains<br><small style="opacity:0.6">transfer JD + work logs</small>
+        </div>
+        <div class="ctx-arrow">→</div>
+        <div class="ctx-node" style="border-color:rgba(65,105,225,0.3);color:#90a8f8">
+          <strong>5.</strong> Worker Onboarded<br><small style="opacity:0.6">inherits task scope</small>
+        </div>
+        <div class="ctx-arrow">→</div>
+        <div class="ctx-node" style="border-color:rgba(0,200,83,0.3);color:var(--green)">
+          <strong>6.</strong> Manager Cleanup<br><small style="opacity:0.6">delete code from JD.md</small>
+        </div>
+        <div class="ctx-arrow">→</div>
+        <div class="ctx-node" style="border-color:rgba(156,39,176,0.3);color:#CE93D8">
+          <strong>7.</strong> Manager Restored<br><small style="opacity:0.6">context 35% — back to mgmt</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Training detail card -->
+    <div style="margin-top:20px;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.15);border-radius:12px;padding:18px">
+      <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:10px">
+        Training & Handoff Protocol
+      </div>
+      <div style="font-size:12px;color:#b0b0cc;line-height:1.8">
+        <strong style="color:#e0d0a0">Step 4 — Training:</strong> Manager extracts execution-level content from their own JD.md and work records (code patterns, API details, step-by-step procedures) and writes them into the new Worker's JD.md as onboarding material.<br>
+        <strong style="color:#e0d0a0">Step 5 — Verification:</strong> Worker reads the transferred JD.md, executes a small test task to prove competency. Manager QA-checks the result.<br>
+        <strong style="color:#e0d0a0">Step 6 — Cleanup:</strong> Once the Worker is verified, Manager <em>deletes</em> all transferred execution details from their own JD.md and work records. Code snippets, API call patterns, verbose logs — all removed.<br>
+        <strong style="color:#e0d0a0">Step 7 — Restored:</strong> Manager's context drops from 85% → ~35%. Manager returns to pure management role: reviewing Worker output, issuing contracts, QA oversight. No more hands-on execution.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ DETAIL PANEL ═══════════════════════ -->
+<div class="panel-overlay" id="overlay" onclick="closePanel(event)">
+  <div class="panel" id="panel">
+    <button class="panel-close" onclick="closeOverlay()">✕</button>
+    <div class="panel-header">
+      <div class="panel-icon" id="pIcon"></div>
+      <div>
+        <div class="panel-title" id="pTitle"></div>
+        <div class="panel-level" id="pLevel"></div>
+      </div>
+    </div>
+    <div class="panel-desc" id="pDesc"></div>
+    <div class="panel-grid" id="pGrid"></div>
+    <div class="panel-perspectives" id="pPersp"></div>
+    <div class="panel-status" id="pStatus"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<div class="footer">
+  NEXUS AI-Team &nbsp;·&nbsp; <span>Chain of Command</span> &nbsp;·&nbsp; Organizational Structure v1.0
+</div>
+
+<script>
+// ─── Node Data ───────────────────────────────────────────────
+const NODE_DATA = {
+  board: {
+    icon: '👑',
+    title: 'Board of Directors',
+    level: 'Level 0 — Human Authority Layer',
+    color: '#FFD700',
+    desc: 'The human user. Ultimate authority in the entire system. Approves major architectural decisions, authorizes budget spend, new hardware procurement, and any decisions that affect the real world beyond the AI sandbox.',
+    capabilities: ['Approve major decisions', 'Control budget & spend', 'Authorize new hardware', 'Override any AI decision', 'Set strategic direction'],
+    constraints: ['Must communicate through CEO for operational detail', 'Cannot micromanage workers directly'],
+    ceo_sees: 'Strategic directives, budget approvals, hardware decisions, go/no-go on new departments',
+    peer_sees: 'N/A — Board is above all peers',
+    status: 'active',
+    statusText: 'Active — Human in the loop'
+  },
+  ceo: {
+    icon: '🤖',
+    title: 'CEO',
+    level: 'Level 1 — Executive AI Agent',
+    color: '#4169E1',
+    desc: 'Highest authority AI agent. Operates at the architectural and strategic level — never looks at code or implementation details. Keeps context pristine by delegating all execution work. Routes requests, spawns departments, and maintains the organizational graph.',
+    capabilities: ['Add departments (Board approval required for major ones)', 'Add employees via HR', 'Add tools via IT', 'Issue contracts to any manager', 'Trigger system-wide upgrades (Board approval required)', 'Spawn CEO Assistants when overwhelmed'],
+    constraints: ['Does NOT touch implementation details or code', 'Major upgrades require Board approval', 'Cannot create new built-in departments alone'],
+    ceo_sees: 'Everything — full organizational authority',
+    peer_sees: 'N/A — CEO is above all departments',
+    status: 'active',
+    statusText: 'Active — Primary executive loop'
+  },
+  'ceo-asst': {
+    icon: '👤',
+    title: 'CEO Assistants',
+    level: 'Level 1 — Executive Overflow Agents',
+    color: '#4169E1',
+    desc: 'Spawned on-demand when the CEO agent approaches context limits or has too many concurrent contracts, emails, and cross-department coordination tasks. Each assistant handles a specific slice of overflow work and reports back to CEO.',
+    capabilities: ['Handle overflow contracts', 'Coordinate cross-department comms', 'Draft responses for CEO review', 'Run parallel coordination threads'],
+    constraints: ['Cannot make major decisions independently', 'Must report all actions to CEO', 'Spawned only when CEO context > threshold'],
+    ceo_sees: 'Delegation queue, overflow work assigned, assistant status',
+    peer_sees: 'CEO-level authority proxy for specific delegated tasks',
+    status: 'planned',
+    statusText: 'Spawn-on-Demand — When CEO is overwhelmed'
+  },
+  hr: {
+    icon: '🏢',
+    title: 'HR Team',
+    level: 'Level 2 — Built-in Core Department',
+    color: '#00C853',
+    desc: 'Built-in department, always present. Responsible for organizational growth: generating new agent JDs, onboarding new employees, and creating new departments (with CEO approval). The backbone of workforce scalability.',
+    capabilities: ['Generate new employee JDs', 'Onboard and configure new agents', 'Create new departments (CEO approval required)', 'Handle workforce requests from peer managers', 'Manage agent capacity and load'],
+    constraints: ['Creating NEW DEPARTMENTS requires CEO approval', 'Cannot acquire tools independently (must go through IT)', 'Cannot accept work contracts outside HR scope'],
+    ceo_sees: '"Add department" — triggers full HR workflow. "Add employee" — HR generates JD and provisions agent.',
+    peer_sees: '"Request personnel" — peer managers file a staffing request, HR fulfills it.',
+    status: 'active',
+    statusText: 'Active — Built-in, always running'
+  },
+  it: {
+    icon: '⚙️',
+    title: 'IT Team',
+    level: 'Level 2 — Built-in Core Department',
+    color: '#00BCD4',
+    desc: 'Built-in department, always present. The only department with full visibility into the current system architecture, server setup, tools marketplace, and GitHub ecosystem. Evaluates, sources, and provisions tools for all other departments.',
+    capabilities: ['Generate and configure new tools', 'Evaluate tools from GitHub and marketplace', 'Provide tools to peer departments', 'Assess system architecture and compatibility', 'Execute system-wide upgrades (CEO approval required)'],
+    constraints: ['Major upgrades require CEO approval', 'Cannot create new agents (that is HR\'s role)', 'Cannot act on business logic — only technical infrastructure'],
+    ceo_sees: '"Add tools" — IT sources and configures. "System-wide upgrade" — IT plans and executes after approval.',
+    peer_sees: '"Request tools" — peer managers specify what tool they need, IT evaluates and provisions.',
+    status: 'active',
+    statusText: 'Active — Built-in, always running'
+  },
+  dynamic: {
+    icon: '✨',
+    title: 'Marketing Team',
+    level: 'Level 2+ — Dynamic Department (Example)',
+    color: '#9C27B0',
+    desc: 'Example of a dynamically created department. Created through a full workflow: CEO identifies gap → dispatches PM → PM researches → CEO coordinates HR + IT → Board approves if needed → Department goes live. Scales itself via context alerts triggering HR requests.',
+    capabilities: ['XiaoHongShu account operations', 'Content scheduling and publishing', 'Account monitoring and analytics', 'Automated login and session management', 'Self-scale: request more staff when context overloads'],
+    constraints: ['Operates within tool set provisioned by IT', 'Headcount changes require HR workflow', 'Major capability changes require CEO approval', 'Budget for external services requires Board approval'],
+    ceo_sees: '"Marketing operational" — receives progress reports. Approves new headcount or tool requests from Marketing.',
+    peer_sees: '"Marketing is the domain expert for XiaoHongShu" — other departments cannot override Marketing\'s operational decisions.',
+    status: 'planned',
+    statusText: 'On-Demand — Created when user needs it'
+  }
+};
+
+// ─── Panel Logic ──────────────────────────────────────────────
+let selectedNode = null;
+
+document.querySelectorAll('.node').forEach(el => {
+  el.addEventListener('click', () => {
+    const id = el.dataset.id;
+    if (!id || !NODE_DATA[id]) return;
+    openPanel(id, el);
+  });
+});
+
+function openPanel(id, nodeEl) {
+  const d = NODE_DATA[id];
+  if (!d) return;
+
+  // Update selected state
+  if (selectedNode) selectedNode.classList.remove('selected');
+  selectedNode = nodeEl;
+  nodeEl.classList.add('selected');
+
+  // Set panel color var
+  document.getElementById('panel').style.setProperty('--node-color', d.color);
+  document.getElementById('panel').style.borderColor = d.color + '40';
+
+  document.getElementById('pIcon').textContent = d.icon;
+  document.getElementById('pTitle').textContent = d.title;
+  document.getElementById('pTitle').style.color = d.color;
+  document.getElementById('pLevel').textContent = d.level;
+
+  document.getElementById('pDesc').textContent = d.desc;
+
+  // Grid: capabilities + constraints
+  document.getElementById('pGrid').innerHTML = `
+    <div class="panel-box">
+      <h4><span>✦</span> Capabilities</h4>
+      <ul>${d.capabilities.map(c => `<li>${c}</li>`).join('')}</ul>
+    </div>
+    <div class="panel-box">
+      <h4><span>⛔</span> Constraints</h4>
+      <ul>${d.constraints.map(c => `<li>${c}</li>`).join('')}</ul>
+    </div>
+  `;
+
+  // Perspectives
+  document.getElementById('pPersp').innerHTML = `
+    <h4>Different Perspectives</h4>
+    <div class="perspective-row">
+      <span class="perspective-label label-ceo">CEO View</span>
+      <span class="perspective-text">${d.ceo_sees}</span>
+    </div>
+    <div class="perspective-row">
+      <span class="perspective-label label-peer">Peer View</span>
+      <span class="perspective-text">${d.peer_sees}</span>
+    </div>
+  `;
+
+  // Status
+  const isActive = d.status === 'active';
+  document.getElementById('pStatus').innerHTML = `
+    <div class="status-dot ${isActive ? 'status-active' : 'status-planned'}"></div>
+    ${d.statusText}
+  `;
+
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('open');
+  if (selectedNode) {
+    selectedNode.classList.remove('selected');
+    selectedNode = null;
+  }
+}
+
+function closePanel(e) {
+  if (e.target === document.getElementById('overlay')) closeOverlay();
+}
+
+// ─── Timeline Animation ───────────────────────────────────────
+let timelineRunning = false;
+let timelineTimeout = null;
+
+function runTimeline() {
+  if (timelineRunning) return;
+  timelineRunning = true;
+
+  const btn = document.getElementById('playBtn');
+  const icon = document.getElementById('btnIcon');
+  btn.classList.add('playing');
+  icon.textContent = '⟳';
+
+  // Reset all steps
+  const steps = document.querySelectorAll('.timeline-step');
+  steps.forEach(s => s.classList.remove('visible'));
+
+  // Animate each step with stagger
+  steps.forEach((step, i) => {
+    const t = setTimeout(() => {
+      step.classList.add('visible');
+      if (i === steps.length - 1) {
+        // Done
+        setTimeout(() => {
+          btn.classList.remove('playing');
+          icon.textContent = '↺';
+          btn.textContent = '';
+          btn.innerHTML = '<span class="btn-icon" id="btnIcon">↺</span> Replay Animation';
+          timelineRunning = false;
+        }, 600);
+      }
+    }, i * 500);
+    timelineTimeout = t;
+  });
+}
+
+// Keyboard: Escape to close panel
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeOverlay();
+});
+
+// ─── Stagger v-line dots on load ─────────────────────────────
+document.querySelectorAll('.v-line::after').forEach((el, i) => {
+  el.style.animationDelay = `${i * 0.4}s`;
+});
+</script>
+</body>
+</html>
