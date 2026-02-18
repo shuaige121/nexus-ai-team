@@ -1,5 +1,8 @@
 name: ${COMPOSE_PROJECT_NAME}
 
+# TODO(H5): Add TLS termination via reverse proxy (nginx/traefik)
+# or by configuring TLS certificates directly on the gateway service.
+
 services:
   # ── PostgreSQL Database ───────────────────────────────────────────────────
   postgres:
@@ -11,8 +14,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       TZ: ${TZ}
-    ports:
-      - "${POSTGRES_PORT}:5432"
+    # ports:
+    #   - "${POSTGRES_PORT}:5432"
+    # PostgreSQL is internal-only; access it via the nexus Docker network.
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ${DB_SCHEMA_PATH}:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -22,6 +26,18 @@ services:
       timeout: ${POSTGRES_HEALTHCHECK_TIMEOUT}
       retries: ${POSTGRES_HEALTHCHECK_RETRIES}
       start_period: ${POSTGRES_HEALTHCHECK_START_PERIOD}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - nexus
 
@@ -41,8 +57,9 @@ services:
         "--requirepass",
         "${REDIS_PASSWORD}"
       ]
-    ports:
-      - "${REDIS_PORT}:6379"
+    # ports:
+    #   - "${REDIS_PORT}:6379"
+    # Redis is internal-only; access it via the nexus Docker network.
     volumes:
       - redis_data:/data
     healthcheck:
@@ -51,6 +68,18 @@ services:
       timeout: ${REDIS_HEALTHCHECK_TIMEOUT}
       retries: ${REDIS_HEALTHCHECK_RETRIES}
       start_period: ${REDIS_HEALTHCHECK_START_PERIOD}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - nexus
 
@@ -113,6 +142,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+        reservations:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - nexus
 
@@ -133,6 +174,16 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
     ports:
       - "${DASHBOARD_PORT:-3000}:80"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - nexus
 

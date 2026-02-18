@@ -16,6 +16,31 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+# M3: Allowlisted command prefixes for subprocess execution
+ALLOWED_COMMANDS: set[str] = {
+    "python3", "python", "pytest", "node", "npm", "npx",
+    "git", "ls", "cat", "head", "tail", "wc", "diff", "grep",
+    "echo", "true", "false", "test", "sh",
+}
+
+
+def _validate_command(command: str) -> list[str]:
+    """Split command string and validate against allowlist.
+
+    Raises ValueError if the command executable is not in ALLOWED_COMMANDS.
+    """
+    args = shlex.split(command)
+    if not args:
+        raise ValueError("Empty command")
+    executable = args[0].split("/")[-1]  # handle absolute paths
+    if executable not in ALLOWED_COMMANDS:
+        raise ValueError(
+            f"Command '{executable}' is not in the allowed command list. "
+            f"Allowed: {sorted(ALLOWED_COMMANDS)}"
+        )
+    return args
+
+
 
 @dataclass
 class CheckResult:
@@ -326,17 +351,23 @@ def run_spec(spec_path: Path) -> RunReport:
     spec_name = spec.get("name", spec_path.stem)
     command = spec["command"]
     timeout_seconds = int(spec.get("timeout_seconds", 60))
-    use_shell = bool(spec.get("use_shell", False))
+    # M3: use_shell is ignored for security -- always use shell=False with allowlist
+    if spec.get("use_shell"):
+        import logging as _log
+        _log.getLogger("qa.runner").warning(
+            "use_shell=true in spec '%s' is ignored (security hardening)", spec_name,
+        )
 
     start = time.perf_counter()
 
     try:
+        cmd_args = _validate_command(command)
         process = subprocess.run(
-            command if use_shell else shlex.split(command),
+            cmd_args,
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
-            shell=use_shell,
+            shell=False,
         )
         stdout = process.stdout
         stderr = process.stderr

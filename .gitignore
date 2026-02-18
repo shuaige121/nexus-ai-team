@@ -51,3 +51,7 @@ company/contracts/pending/*.yaml
 company/contracts/completed/*.yaml
 company/contracts/archived/*.yaml
 company/contracts/archived/*.md
+
+# Database files
+*.db
+*.sqlite3

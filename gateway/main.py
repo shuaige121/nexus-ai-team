@@ -12,8 +12,10 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from gateway.auth import AuthMiddleware
 from gateway.config import settings
@@ -30,6 +32,49 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
 )
 logger = logging.getLogger("gateway")
+
+# ---------------------------------------------------------------------------
+# Pydantic request / response models for POST endpoints (H4)
+# ---------------------------------------------------------------------------
+
+
+class ChatRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=10000)
+    agent: str = Field(default="ceo")
+
+
+class WorkOrderCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="")
+    priority: str = Field(default="medium", pattern=r"^(low|medium|high|critical)$")
+    assigned_to: str | None = None
+
+
+class WorkOrderUpdate(BaseModel):
+    status: str = Field(..., pattern=r"^(pending|in_progress|completed|failed|cancelled)$")
+
+
+class ErrorResponse(BaseModel):
+    ok: bool = False
+    error: str
+    request_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Request-ID middleware (M6)
+# ---------------------------------------------------------------------------
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a unique UUID4 request-id to every HTTP request/response."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
 
 # Global pipeline components
 db: WorkOrderDB | None = None
@@ -52,7 +97,6 @@ async def health_broadcast_loop():
         try:
             # Only broadcast if there are active WebSocket connections
             if manager.active_count > 0:
-                # Get health status (reuse the detailed_health logic)
                 health_report = {
                     "timestamp": datetime.now().isoformat(),
                     "gateway": {"status": "healthy", "message": "Gateway responding"},
@@ -74,11 +118,12 @@ async def health_broadcast_loop():
                             "message": "Redis unreachable",
                         }
 
-                # Check PostgreSQL
+                # Check PostgreSQL via connection pool (M4)
                 if db:
                     try:
-                        async with db._conn.cursor() as cur:
-                            await cur.execute("SELECT 1")
+                        async with db.get_connection() as conn:
+                            async with conn.cursor() as cur:
+                                await cur.execute("SELECT 1")
                         health_report["postgres"] = {
                             "status": "healthy",
                             "message": "PostgreSQL connected",
@@ -118,7 +163,7 @@ async def lifespan(app: FastAPI):
         dispatcher = Dispatcher(db, queue, router)
         await dispatcher.start()
 
-        admin_agent = AdminAgent(router=router, use_llm=False)  # LLM disabled for faster startup
+        admin_agent = AdminAgent(router=router, use_llm=False)
 
         # Start health broadcast task
         health_broadcast_task = asyncio.create_task(health_broadcast_loop())
@@ -172,7 +217,10 @@ app.add_middleware(
 # 2. Rate limiter
 app.add_middleware(RateLimiterMiddleware)
 
-# 3. Auth — innermost (runs first on request)
+# 3. Request ID (M6)
+app.add_middleware(RequestIDMiddleware)
+
+# 4. Auth — innermost (runs first on request)
 app.add_middleware(AuthMiddleware)
 
 
@@ -188,15 +236,7 @@ async def health():
 
 @app.get("/api/health/detailed", tags=["system"])
 async def detailed_health():
-    """Detailed system health check for monitoring.
-
-    Returns comprehensive health status of all components:
-    - Gateway (this service)
-    - Redis connectivity
-    - PostgreSQL connectivity
-    - Agent activity
-    - System metrics
-    """
+    """Detailed system health check for monitoring."""
     health_report = {
         "timestamp": datetime.now().isoformat(),
         "gateway": {"status": "healthy", "message": "Gateway responding"},
@@ -223,17 +263,20 @@ async def detailed_health():
                 "message": f"Redis error: {e}",
             }
 
-    # Check PostgreSQL
+    # Check PostgreSQL via connection pool (M4)
     if db:
         try:
-            async with db._conn.cursor() as cur:
-                await cur.execute("SELECT COUNT(*) FROM work_orders WHERE status = 'in_progress'")
-                result = await cur.fetchone()
-                in_progress_count = result[0] if result else 0
+            async with db.get_connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT COUNT(*) FROM work_orders WHERE status = 'in_progress'"
+                    )
+                    result = await cur.fetchone()
+                    in_progress_count = result[0] if result else 0
 
-                await cur.execute("SELECT COUNT(*) FROM work_orders")
-                result = await cur.fetchone()
-                total_count = result[0] if result else 0
+                    await cur.execute("SELECT COUNT(*) FROM work_orders")
+                    result = await cur.fetchone()
+                    total_count = result[0] if result else 0
 
             health_report["postgres"] = {
                 "status": "healthy",
@@ -242,17 +285,16 @@ async def detailed_health():
                 "work_orders_in_progress": in_progress_count,
             }
 
-            # Check for stale work orders (agents potentially stuck)
-            async with db._conn.cursor() as cur:
-                await cur.execute(
-                    """
-                    SELECT COUNT(*) FROM work_orders
-                    WHERE status = 'in_progress'
-                    AND updated_at < NOW() - INTERVAL '5 minutes'
-                    """
-                )
-                result = await cur.fetchone()
-                stale_count = result[0] if result else 0
+            # Check for stale work orders
+            async with db.get_connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT COUNT(*) FROM work_orders"
+                        " WHERE status = 'in_progress'"
+                        " AND updated_at < NOW() - INTERVAL '5 minutes'"
+                    )
+                    result = await cur.fetchone()
+                    stale_count = result[0] if result else 0
 
             if stale_count > 0:
                 health_report["agents"] = {
@@ -320,13 +362,12 @@ async def list_agents():
                 "provider": target.provider,
                 "max_tokens": target.max_tokens,
                 "temperature": target.temperature,
-                "status": "active",  # Could be extended with real status tracking
+                "status": "active",
             })
         return {"ok": True, "agents": result}
     except Exception as e:
         logger.exception("Failed to list agents")
         return {"ok": False, "error": str(e)}
-
 
 
 @app.get("/api/skills", tags=["skills"])
@@ -346,15 +387,18 @@ async def list_skills():
         logger.exception("Failed to list skills")
         return {"ok": False, "error": str(e)}
 
+
 @app.get("/api/work-orders", tags=["work-orders"])
-async def list_work_orders(status: str | None = None, owner: str | None = None, limit: int = 50):
+async def list_work_orders(
+    status: str | None = None, owner: str | None = None, limit: int = 50
+):
     """Query work orders with optional filtering by status and owner."""
     if not db:
         return {"ok": False, "error": "Database not initialized"}
 
     try:
         query = "SELECT * FROM work_orders WHERE 1=1"
-        params = []
+        params: list = []
 
         if status:
             query += " AND status = %s"
@@ -367,9 +411,10 @@ async def list_work_orders(status: str | None = None, owner: str | None = None, 
         query += " ORDER BY created_at DESC LIMIT %s"
         params.append(limit)
 
-        async with db._conn.cursor() as cur:
-            await cur.execute(query, params)
-            rows = await cur.fetchall()
+        async with db.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
 
         return {"ok": True, "work_orders": rows, "count": len(rows)}
     except Exception as e:
@@ -384,13 +429,8 @@ async def get_metrics(period: str = "today"):
         return {"ok": False, "error": "Database not initialized"}
 
     try:
-        # Get cost summary
         cost_summary = await db.get_cost_summary(period=period)
-
-        # Get system status
         system_status = await db.get_system_status()
-
-        # Get recent audit logs for request count
         audit_logs = await db.get_recent_audit_logs(limit=100)
 
         return {
@@ -414,20 +454,14 @@ async def get_metrics(period: str = "today"):
 
 
 @app.post("/api/chat", tags=["chat"])
-async def chat(message: dict):
+async def chat(body: ChatRequest):
     """HTTP fallback for sending a chat message (non-WebSocket clients)."""
-    content = message.get("content", "")
-    if not content:
-        return {"ok": False, "error": "Empty message"}
-
     if not admin_agent or not db or not queue:
         return {"ok": False, "error": "Pipeline not initialized"}
 
     try:
-        # Create work order via Admin agent
-        wo = admin_agent.create_work_order(user_message=content)
+        wo = admin_agent.create_work_order(user_message=body.content)
 
-        # Store work order in DB
         await db.create_work_order(
             wo_id=wo.id,
             intent=wo.intent,
@@ -438,11 +472,10 @@ async def chat(message: dict):
             qa_requirements=wo.qa_requirements,
         )
 
-        # Enqueue to Redis Streams
         await queue.enqueue(
             wo.id,
             {
-                "user_message": content,
+                "user_message": body.content,
                 "conversation": [],
                 "session_id": None,
             },
