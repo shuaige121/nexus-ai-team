@@ -160,3 +160,66 @@ open:
 api-docs:
 	@echo "📚 Opening API documentation..."
 	@command -v xdg-open > /dev/null && xdg-open http://localhost:8000/docs || open http://localhost:8000/docs || echo "Please open http://localhost:8000/docs manually"
+
+# ── Skill Commands ────────────────────────────────────────────────────────────
+
+.PHONY: skill-install skill-list org-scan org-brief test-integration test-all
+
+skill-install:
+	@echo "Installing skill..."
+	@if command -v nexus-skill > /dev/null 2>&1; then \
+		nexus-skill install; \
+	else \
+		echo "nexus-skill CLI not found. Install via: pip install -e .[dev]"; \
+	fi
+
+skill-list:
+	@echo "Installed skills:"
+	@if command -v nexus-skill > /dev/null 2>&1; then \
+		nexus-skill list; \
+	else \
+		python -c "from gateway.skill_registry import SkillRegistry; sr = SkillRegistry(); [print(f'  - {s[\"name\"]}') for s in sr.list_skills()] or print('  (none)')"; \
+	fi
+
+# ── Org Commands ──────────────────────────────────────────────────────────────
+
+org-scan:
+	@echo "Scanning organization structure..."
+	@if command -v nexus-org > /dev/null 2>&1; then \
+		nexus-org scan; \
+	else \
+		python -c "from gateway.agent_router import AgentRouter; r = AgentRouter(); print(f'Agents: {len(r.agents)}'); print(f'Departments: {list(r.departments.keys())}')"; \
+	fi
+
+org-brief:
+	@echo "Generating CEO brief..."
+	@if command -v nexus-org > /dev/null 2>&1; then \
+		nexus-org brief; \
+	else \
+		echo "nexus-org CLI not found. Generating summary from registry..."; \
+		python -c "\
+from gateway.agent_router import AgentRouter; \
+r = AgentRouter(); \
+active = r.get_active_agents(); \
+print(f'Active agents: {len(active)}'); \
+for dept, members in r.departments.items(): \
+    print(f'  {dept}: {len(members)} member(s)')"; \
+	fi
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+
+test-integration:
+	@echo "Running integration tests..."
+	python -m pytest tests/test_integration_system.py -v
+
+test-all:
+	@echo "Running all tests..."
+	python -m pytest tests/ -v
+
+# ── Startup ───────────────────────────────────────────────────────────────────
+
+start:
+	@bash scripts/nexus-start.sh
+
+start-no-docker:
+	@bash scripts/nexus-start.sh --skip-docker

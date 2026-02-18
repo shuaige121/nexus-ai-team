@@ -20,6 +20,7 @@ from gateway.config import settings
 from gateway.rate_limiter import RateLimiterMiddleware
 from gateway.schemas import HealthResponse
 from gateway.ws import manager
+from gateway.skill_registry import SkillRegistry
 from nexus_v1.admin import AdminAgent
 from nexus_v1.model_router import ModelRouter
 from pipeline import Dispatcher, QueueManager, WorkOrderDB
@@ -326,6 +327,24 @@ async def list_agents():
         logger.exception("Failed to list agents")
         return {"ok": False, "error": str(e)}
 
+
+
+@app.get("/api/skills", tags=["skills"])
+async def list_skills():
+    """List all installed Nexus skills and their capabilities."""
+    try:
+        sr = SkillRegistry()
+        skills = sr.list_skills()
+        capabilities = sr.get_capabilities()
+        return {
+            "ok": True,
+            "skills": skills,
+            "capabilities": capabilities,
+            "count": len(skills),
+        }
+    except Exception as e:
+        logger.exception("Failed to list skills")
+        return {"ok": False, "error": str(e)}
 
 @app.get("/api/work-orders", tags=["work-orders"])
 async def list_work_orders(status: str | None = None, owner: str | None = None, limit: int = 50):
