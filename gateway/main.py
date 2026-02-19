@@ -23,6 +23,7 @@ from gateway.rate_limiter import RateLimiterMiddleware
 from gateway.schemas import HealthResponse
 from gateway.skill_registry import SkillRegistry
 from gateway.orchestrator_routes import router as orchestrator_router
+from gateway.approval_webhook import router as approval_webhook_router
 from gateway.ws import manager
 from nexus_v1.admin import AdminAgent
 from nexus_v1.model_router import ModelRouter
@@ -235,6 +236,7 @@ app.add_middleware(AuthMiddleware)
 # ---------------------------------------------------------------------------
 
 app.include_router(orchestrator_router)
+app.include_router(approval_webhook_router)
 
 # ---------------------------------------------------------------------------
 # HTTP routes

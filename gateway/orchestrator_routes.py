@@ -27,6 +27,10 @@ class ContractRequest(BaseModel):
     priority: str = Field(default="medium", pattern=r"^(low|medium|high|critical)$")
     department: str = Field(default="IT")
     max_attempts: int = Field(default=3, ge=1, le=10)
+    # Approval routing fields
+    approver_type: str = Field(default="ai", pattern=r"^(ai|human)$")
+    approver_id: str = Field(default="ai_ceo")
+    cc_list: list[str] = Field(default_factory=list)
 
 
 class ContractResponse(BaseModel):
@@ -77,6 +81,13 @@ async def create_contract(req: ContractRequest):
         "max_checks": 3,
         "last_check_time": "",
         "check_result": "",
+        # Approval fields
+        "approval_request_id": "",
+        "approval_status": "",
+        "approval_rejection_notes": "",
+        "approver_type": req.approver_type,
+        "approver_id": req.approver_id,
+        "approval_cc_list": req.cc_list,
     }
 
     logger.info("[CONTRACT] Creating contract %s: %s", contract_id, req.task_description[:80])
