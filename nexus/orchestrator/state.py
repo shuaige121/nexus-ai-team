@@ -118,3 +118,25 @@ class NexusContractState(TypedDict):
 
     # 回查结果："on_track" / "delayed" / "stuck" / ""（未开始回查）
     check_result: str
+
+    # =========================================================================
+    # 功能3：Approval（审批流程）
+    # =========================================================================
+
+    # 当前审批请求 ID（空字符串表示无进行中审批）
+    approval_request_id: str
+
+    # 审批状态：pending / approved / rejected / （未发起）
+    approval_status: str
+
+    # 拒绝备注（审批通过时为空字符串）
+    approval_rejection_notes: str
+
+    # 审批人类型：ai 或 human
+    approver_type: str
+
+    # 审批人标识：human 时为 Telegram chat ID，AI 时为 "ai_ceo"
+    approver_id: str
+
+    # 抄送列表：Telegram chat ID 列表
+    approval_cc_list: list[str]
