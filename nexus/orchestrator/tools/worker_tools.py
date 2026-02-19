@@ -14,9 +14,12 @@ from nexus.orchestrator.tools._llm_helper import llm_call
 logger = logging.getLogger(__name__)
 
 _WRITE_CODE_SYSTEM = (
-    "You are a senior Python developer. Write clean, well-structured, "
-    "and tested code. Include docstrings and type hints. "
-    "Return only the code — no prose before or after."
+    "You are a senior Python developer. Write clean, production-ready code.\n"
+    "If the instruction mentions QA feedback or previous issues, focus on "
+    "FIXING those specific issues.\n"
+    "Do not regenerate from scratch — build on the previous implementation "
+    "and address each QA concern.\n"
+    "Always include proper error handling, type hints, and docstrings."
 )
 
 
@@ -44,7 +47,7 @@ def write_code(role: str, instruction: str, attempt: int = 1) -> str:
         f"Attempt #{attempt}.\n\n"
         f"Task instruction:\n{instruction}"
     )
-    return llm_call(role, _WRITE_CODE_SYSTEM, user_prompt)
+    return llm_call(role, _WRITE_CODE_SYSTEM, user_prompt, max_tokens=4096)
 
 
 def run_tests(role: str, code: str) -> dict:

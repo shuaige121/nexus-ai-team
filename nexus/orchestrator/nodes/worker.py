@@ -35,9 +35,23 @@ def worker_execute(state: NexusContractState) -> dict:
     )
 
     # 工具调用1：编写代码（第 N 次尝试）
+    # 重试时将 QA 反馈注入指令，让 Worker 针对性修复而非重头重写
+    if attempt > 1 and state.get("qa_report"):
+        instruction = (
+            "你上一次的代码被 QA 打回了。以下是 QA 的反馈，请针对性修改：\n\n"
+            "--- QA 反馈 ---\n"
+            + state["qa_report"]
+            + "\n--- QA 反馈结束 ---\n\n"
+            "原始任务: "
+            + state.get("manager_instruction", state["task_description"])
+            + "\n\n请修复 QA 指出的所有问题，不要重新从头写。"
+        )
+    else:
+        instruction = state.get("manager_instruction", state["task_description"])
+
     code = write_code(
         role="worker",
-        instruction=state.get("manager_instruction", state["task_description"]),
+        instruction=instruction,
         attempt=attempt,
     )
 

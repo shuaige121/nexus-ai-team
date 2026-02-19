@@ -155,11 +155,17 @@ def manager_review_after_qa(state: NexusContractState) -> dict:
         return updates
 
     else:
-        # 还有重试机会 → 重新分配 Worker
+        # 还有重试机会 → 将 QA 反馈嵌入指令后重新分配 Worker
         instruction = assign_worker(
             role="manager",
             worker_id="worker_001",
             subtasks=state.get("subtasks", [state["task_description"]]),
+        )
+        # 将 QA 报告嵌入 manager_instruction，使 Worker 收到完整上下文
+        retry_instruction = (
+            f"重试指令: QA 审查未通过，请修复以下问题后重新提交。\n"
+            f"QA 报告: {state.get('qa_report', '')}\n\n"
+            f"原始任务: {state['task_description']}"
         )
         mail, rejection = send_mail(
             state_phase=state["current_phase"],
@@ -174,7 +180,7 @@ def manager_review_after_qa(state: NexusContractState) -> dict:
         )
         updates = {
             "current_phase": "worker_executing",
-            "manager_instruction": instruction,
+            "manager_instruction": retry_instruction,
         }
         if mail is not None:
             updates["mail_log"] = [mail]
