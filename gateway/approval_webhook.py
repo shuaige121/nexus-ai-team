@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 
 from fastapi import APIRouter, Request, Response
 
@@ -29,6 +30,31 @@ router = APIRouter(prefix="/webhook", tags=["webhook"])
 _pending_rejections: dict[str, str] = {}
 
 
+def _resume_graph(contract_id: str, human_response: dict) -> None:
+    """Resume the LangGraph graph from interrupt in a background thread."""
+    try:
+        from nexus.orchestrator.checkpoint import get_checkpointer
+        from nexus.orchestrator.graph import build_graph_with_interrupts
+        from langgraph.types import Command
+
+        checkpointer = get_checkpointer()
+        graph = build_graph_with_interrupts(checkpointer=checkpointer)
+        config = {"configurable": {"thread_id": contract_id}}
+
+        def _run():
+            try:
+                for event in graph.stream(Command(resume=human_response), config=config):
+                    pass  # Let graph run to completion
+            except Exception as e:
+                logger.error("[WEBHOOK] Graph resume failed for %s: %s", contract_id, e)
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        logger.info("[WEBHOOK] Graph resume started for contract %s", contract_id)
+    except Exception as e:
+        logger.error("[WEBHOOK] Failed to resume graph: %s", e)
+
+
 @router.post("/telegram")
 async def telegram_webhook(request: Request) -> Response:
     """Process inbound Telegram webhook updates.
@@ -38,6 +64,14 @@ async def telegram_webhook(request: Request) -> Response:
     - text messages used as rejection notes
     """
     import telegram
+
+    # --- Webhook signature verification (P2-15) ---
+    expected_token = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    if expected_token:
+        received_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if received_token != expected_token:
+            logger.warning("[WEBHOOK] Invalid secret token from %s", request.client.host)
+            return Response(status_code=403)
 
     data = await request.json()
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -114,9 +148,10 @@ async def telegram_webhook(request: Request) -> Response:
                 decided_by=user_name,
             )
 
-            # TODO: resume LangGraph graph from interrupt for this contract
+            # Resume the LangGraph graph from interrupt
+            _resume_graph(req.contract_id, {"action": "approve"})
             logger.info(
-                "[WEBHOOK] Approved %s by %s — graph resume pending for contract %s",
+                "[WEBHOOK] Approved %s by %s for contract %s",
                 request_id,
                 user_name,
                 req.contract_id,
@@ -223,9 +258,10 @@ async def telegram_webhook(request: Request) -> Response:
                     decided_by=user_name,
                 )
 
-                # TODO: resume LangGraph graph from interrupt with rejection result
+                # Resume the LangGraph graph from interrupt with rejection result
+                _resume_graph(req.contract_id, {"action": "reject", "notes": text})
                 logger.info(
-                    "[WEBHOOK] Rejected %s by %s with notes — graph resume pending for contract %s",
+                    "[WEBHOOK] Rejected %s by %s with notes for contract %s",
                     request_id,
                     user_name,
                     req.contract_id,

@@ -5,14 +5,22 @@ Provides REST endpoints for creating and querying LangGraph contracts.
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
+
+# ---------------------------------------------------------------------------
+# In-memory contract tracking (for async submit + poll)
+# ---------------------------------------------------------------------------
+
+_contract_status: dict[str, dict] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -42,13 +50,60 @@ class ContractResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Background graph runner
+# ---------------------------------------------------------------------------
+
+
+def _run_graph_background(
+    contract_id: str,
+    graph,
+    initial_state: dict,
+    config: dict,
+) -> None:
+    """Run graph.stream() in a background thread, updating _contract_status."""
+    try:
+        _contract_status[contract_id]["status"] = "running"
+        final_state = None
+
+        for event in graph.stream(initial_state, config=config, stream_mode="updates"):
+            for node_name, node_output in event.items():
+                logger.debug("[CONTRACT] %s node %s completed", contract_id, node_name)
+                _contract_status[contract_id]["current_phase"] = node_name
+                _contract_status[contract_id]["steps"].append(node_name)
+                final_state = node_output
+
+        # Retrieve authoritative final state from checkpointer
+        result = graph.get_state(config).values
+
+        status = "in_progress"
+        if result.get("ceo_approved"):
+            status = "completed"
+        elif result.get("escalated"):
+            status = "escalated"
+
+        _contract_status[contract_id].update({
+            "status": status,
+            "current_phase": result.get("current_phase", "unknown"),
+            "final_state": result,
+        })
+        logger.info("[CONTRACT] %s finished with status=%s", contract_id, status)
+
+    except Exception as exc:
+        logger.exception("[CONTRACT] %s failed: %s", contract_id, exc)
+        _contract_status[contract_id].update({
+            "status": "error",
+            "error": str(exc),
+        })
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 
-@router.post("/", response_model=ContractResponse)
+@router.post("/", status_code=202)
 async def create_contract(req: ContractRequest):
-    """CEO creates a new contract and kicks off the graph."""
+    """CEO creates a new contract and kicks off the graph in the background."""
     from nexus.orchestrator.checkpoint import get_checkpointer
     from nexus.orchestrator.graph import build_graph
 
@@ -96,33 +151,144 @@ async def create_contract(req: ContractRequest):
     graph = build_graph(checkpointer=checkpointer)
     config = {"configurable": {"thread_id": contract_id}}
 
-    # Run synchronously for MVP (async streaming later)
-    final_state = None
-    for event in graph.stream(initial_state, config=config, stream_mode="updates"):
-        for node_name, node_output in event.items():
-            logger.debug("[CONTRACT] %s node %s completed", contract_id, node_name)
-            final_state = node_output
-
-    result = graph.get_state(config).values
-
-    status = "in_progress"
-    if result.get("ceo_approved"):
-        status = "completed"
-    elif result.get("escalated"):
-        status = "escalated"
-
-    logger.info("[CONTRACT] %s finished with status=%s", contract_id, status)
-
-    return ContractResponse(
-        contract_id=contract_id,
-        status=status,
-        current_phase=result.get("current_phase", "unknown"),
+    # Track contract and run graph in background thread
+    _contract_status[contract_id] = {
+        "status": "queued",
+        "current_phase": "ceo_dispatch",
+        "steps": [],
+    }
+    thread = threading.Thread(
+        target=_run_graph_background,
+        args=(contract_id, graph, initial_state, config),
+        daemon=True,
     )
+    thread.start()
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "contract_id": contract_id,
+            "status": "queued",
+            "current_phase": "ceo_dispatch",
+        },
+    )
+
+
+@router.get("/")
+async def list_contracts():
+    """List all known contracts (in-memory + checkpointed)."""
+    from nexus.orchestrator.checkpoint import get_checkpointer
+    from nexus.orchestrator.graph import build_graph
+
+    contracts = []
+
+    # 1. In-memory tracked contracts
+    for cid, info in _contract_status.items():
+        contracts.append({
+            "contract_id": cid,
+            "status": info.get("status", "unknown"),
+            "current_phase": info.get("current_phase", "unknown"),
+        })
+
+    # 2. Check checkpointer for persisted contracts not in memory
+    try:
+        checkpointer = get_checkpointer()
+        graph = build_graph(checkpointer=checkpointer)
+        if hasattr(checkpointer, "list"):
+            in_memory_ids = set(_contract_status.keys())
+            for checkpoint_tuple in checkpointer.list(None):
+                thread_id = checkpoint_tuple.config.get("configurable", {}).get("thread_id", "")
+                if thread_id and thread_id not in in_memory_ids:
+                    config = {"configurable": {"thread_id": thread_id}}
+                    state = graph.get_state(config)
+                    if state and state.values:
+                        status = "in_progress"
+                        if state.values.get("ceo_approved"):
+                            status = "completed"
+                        elif state.values.get("escalated"):
+                            status = "escalated"
+                        contracts.append({
+                            "contract_id": thread_id,
+                            "status": status,
+                            "current_phase": state.values.get("current_phase", "unknown"),
+                        })
+    except Exception as exc:
+        logger.warning("[CONTRACT] Could not list checkpointed contracts: %s", exc)
+
+    return contracts
 
 
 @router.get("/{contract_id}", response_model=dict)
 async def get_contract_status(contract_id: str):
-    """Get the current state of a contract."""
+    """Get the current state of a contract (filtered to safe fields)."""
+    from nexus.orchestrator.checkpoint import get_checkpointer
+    from nexus.orchestrator.graph import build_graph
+
+    safe_fields = [
+        "contract_id", "task_description", "current_phase", "qa_verdict",
+        "qa_report", "attempt_count", "ceo_approved", "approval_status",
+        "final_result", "subtasks", "escalated", "priority", "department",
+    ]
+
+    # Check in-memory status first (may not be checkpointed yet)
+    in_memory = _contract_status.get(contract_id)
+
+    checkpointer = get_checkpointer()
+    graph = build_graph(checkpointer=checkpointer)
+    config = {"configurable": {"thread_id": contract_id}}
+
+    state = graph.get_state(config)
+
+    if state and state.values:
+        # Checkpointed state exists — filter to safe fields
+        result = {k: state.values.get(k) for k in safe_fields if state.values.get(k) is not None}
+        # Overlay runtime tracking info
+        if in_memory:
+            result["status"] = in_memory.get("status", "unknown")
+            result["steps"] = in_memory.get("steps", [])
+            if in_memory.get("error"):
+                result["error"] = in_memory["error"]
+        else:
+            status = "in_progress"
+            if state.values.get("ceo_approved"):
+                status = "completed"
+            elif state.values.get("escalated"):
+                status = "escalated"
+            result["status"] = status
+        return result
+
+    # Not checkpointed yet — return in-memory tracking if available
+    if in_memory:
+        return {
+            "contract_id": contract_id,
+            "status": in_memory.get("status", "unknown"),
+            "current_phase": in_memory.get("current_phase", "unknown"),
+            "steps": in_memory.get("steps", []),
+            **({"error": in_memory["error"]} if in_memory.get("error") else {}),
+        }
+
+    raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
+
+
+@router.delete("/{contract_id}")
+async def cancel_contract(contract_id: str):
+    """Cancel a running contract."""
+    if contract_id not in _contract_status:
+        raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found in active contracts")
+
+    current = _contract_status[contract_id]
+    if current.get("status") in ("completed", "error", "cancelled"):
+        return {"contract_id": contract_id, "status": current["status"], "message": "Contract already finished"}
+
+    _contract_status[contract_id]["status"] = "cancelled"
+    logger.info("[CONTRACT] %s marked as cancelled", contract_id)
+
+    return {"contract_id": contract_id, "status": "cancelled"}
+
+
+@router.get("/{contract_id}/logs")
+async def get_contract_logs(contract_id: str):
+    """Return the mail_log for a contract."""
     from nexus.orchestrator.checkpoint import get_checkpointer
     from nexus.orchestrator.graph import build_graph
 
@@ -134,4 +300,4 @@ async def get_contract_status(contract_id: str):
     if not state or not state.values:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
 
-    return state.values
+    return {"contract_id": contract_id, "mail_log": state.values.get("mail_log", [])}

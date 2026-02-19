@@ -101,7 +101,7 @@ def check_progress(state: NexusContractState) -> dict:
         # 通知 Manager Worker 可能卡住了
         mail, rejection = send_mail(
             state_phase="check_stuck",
-            to_role="ceo",
+            to_role="manager",
             subject=f"进度预警: {contract_id} Worker 无响应",
             body=(
                 f"合同 {contract_id} 第 {new_check_count} 次回查，"
@@ -115,7 +115,7 @@ def check_progress(state: NexusContractState) -> dict:
             "check_result": "stuck",
             "check_count": new_check_count,
             "last_check_time": now_iso,
-            "escalated": True,
+            "escalated": new_check_count >= max_checks,
             "mail_log": [mail] if mail else [],
         }
 
@@ -160,6 +160,6 @@ def route_after_progress_check(state: NexusContractState) -> str:
         return "ceo_handle_escalation"
     else:
         logger.info(
-            "[ROUTER] route_after_progress_check: %s → worker_execute", check_result
+            "[ROUTER] route_after_progress_check: %s → qa_review", check_result
         )
-        return "worker_execute"
+        return "qa_review"

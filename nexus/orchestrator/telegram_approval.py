@@ -7,6 +7,7 @@ NEXUS Telegram 审批集成
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 import os
 
@@ -205,7 +206,7 @@ async def send_decision_notification(
 
 
 # ---------------------------------------------------------------------------
-# Synchronous wrappers — safe for LangGraph nodes (which run in sync context)
+# Synchronous wrappers — safe for both sync and async calling contexts
 # ---------------------------------------------------------------------------
 
 
@@ -220,24 +221,27 @@ def send_approval_request_sync(
 ) -> dict:
     """Synchronous wrapper around send_approval_request.
 
-    Spins up a dedicated event loop so this can be safely called from
-    synchronous LangGraph nodes without interfering with an existing loop.
+    Works correctly whether called from a sync context (LangGraph node) or
+    from within an existing async event loop (FastAPI request handler).
     """
-    loop = asyncio.new_event_loop()
+    coro = send_approval_request(
+        approver_chat_id,
+        request_id,
+        contract_id,
+        title,
+        summary,
+        approver_display,
+        cc_chat_ids,
+    )
     try:
-        return loop.run_until_complete(
-            send_approval_request(
-                approver_chat_id,
-                request_id,
-                contract_id,
-                title,
-                summary,
-                approver_display,
-                cc_chat_ids,
-            )
-        )
-    finally:
-        loop.close()
+        asyncio.get_running_loop()
+        # Already in async context — run in a separate thread to avoid conflict
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result(timeout=30)
+    except RuntimeError:
+        # No running loop — safe to create one
+        return asyncio.run(coro)
 
 
 def send_decision_notification_sync(
@@ -251,21 +255,24 @@ def send_decision_notification_sync(
 ) -> None:
     """Synchronous wrapper around send_decision_notification.
 
-    Spins up a dedicated event loop so this can be safely called from
-    synchronous LangGraph nodes without interfering with an existing loop.
+    Works correctly whether called from a sync context (LangGraph node) or
+    from within an existing async event loop (FastAPI request handler).
     """
-    loop = asyncio.new_event_loop()
+    coro = send_decision_notification(
+        chat_ids,
+        request_id,
+        contract_id,
+        title,
+        decision,
+        rejection_notes,
+        decided_by,
+    )
     try:
-        loop.run_until_complete(
-            send_decision_notification(
-                chat_ids,
-                request_id,
-                contract_id,
-                title,
-                decision,
-                rejection_notes,
-                decided_by,
-            )
-        )
-    finally:
-        loop.close()
+        asyncio.get_running_loop()
+        # Already in async context — run in a separate thread to avoid conflict
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            future.result(timeout=30)
+    except RuntimeError:
+        # No running loop — safe to create one
+        asyncio.run(coro)

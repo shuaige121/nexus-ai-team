@@ -111,5 +111,6 @@ def manager_reassign(state: NexusContractState) -> dict:
             # 重置 contract_accepted 为 None，等待新的 Worker 回应
             "contract_accepted": None,
             "reject_reason": "",
+            "attempt_count": attempt_count + 1,
             "mail_log": [mail] if mail else [],
         }

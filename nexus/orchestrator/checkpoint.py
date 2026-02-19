@@ -56,8 +56,11 @@ def get_checkpointer():
     from langgraph.checkpoint.sqlite import SqliteSaver
 
     conn = sqlite3.connect(db_path, check_same_thread=False)
+    # Enable WAL mode for better concurrency
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")  # Wait up to 5s on lock
     saver = SqliteSaver(conn)
     saver.setup()
-    logger.info("[CHECKPOINT] Using SqliteSaver (path=%s)", db_path)
+    logger.info("[CHECKPOINT] Using SQLite: %s (WAL mode)", db_path)
     _checkpointer = saver
     return saver

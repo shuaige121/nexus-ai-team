@@ -1,0 +1,31 @@
+company:
+  name: NEXUS Corp
+  board: user
+departments:
+- id: executive
+  name: 执行办公室
+  positions:
+  - ceo
+- id: hr
+  name: 人力资源部
+  positions:
+  - hr_lead
+chain_of_command:
+  ceo:
+    reports_to: board
+    can_command:
+    - hr_lead
+    authority:
+    - create_department
+    - remove_department
+    - approve_hiring
+    - approve_firing
+  hr_lead:
+    reports_to: ceo
+    can_command: []
+    authority:
+    - create_position
+    - create_employee
+    - assign_employee
+    - remove_employee
+    - remove_position
