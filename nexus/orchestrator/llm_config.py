@@ -1,12 +1,26 @@
-"""LLM configuration for NEXUS orchestrator MVP."""
+"""LLM configuration for NEXUS orchestrator — dual compute nodes."""
+import os
 
-OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_MODEL = "ollama/qwen2.5-coder:7b"
+# Dual Ollama endpoints
+LOCAL_OLLAMA_URL = os.getenv("NEXUS_LOCAL_OLLAMA", "http://localhost:11434")
+REMOTE_OLLAMA_URL = os.getenv("NEXUS_REMOTE_OLLAMA", "http://192.168.7.6:11434")
 
-# Role-specific model mapping (all same for MVP, can diverge later)
+# Models
+LOCAL_MODEL = "ollama/qwen2.5-coder:7b"
+REMOTE_MODEL = "ollama/qwen2.5-coder:32b"
+
+# Role → model: Worker needs power for code gen, others are lighter tasks
 ROLE_MODELS = {
-    "worker": DEFAULT_MODEL,
-    "qa": DEFAULT_MODEL,
-    "manager": DEFAULT_MODEL,
-    "ceo": DEFAULT_MODEL,
+    "worker": REMOTE_MODEL,
+    "qa": LOCAL_MODEL,
+    "manager": LOCAL_MODEL,
+    "ceo": LOCAL_MODEL,
+}
+
+# Role → base URL: matches ROLE_MODELS to appropriate Ollama instance
+ROLE_BASE_URLS = {
+    "worker": REMOTE_OLLAMA_URL,
+    "qa": LOCAL_OLLAMA_URL,
+    "manager": LOCAL_OLLAMA_URL,
+    "ceo": LOCAL_OLLAMA_URL,
 }
