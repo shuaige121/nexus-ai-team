@@ -94,6 +94,7 @@ def worker_execute(state: NexusContractState) -> dict:
     updates: dict = {
         "current_phase": "qa_reviewing",
         "worker_output": worker_output,
+        "worker_raw_code": code,
         "attempt_count": attempt,
     }
     if mail is not None:

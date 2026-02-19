@@ -35,19 +35,20 @@ def qa_review(state: NexusContractState) -> dict:
     )
 
     worker_output = state["worker_output"]
+    worker_code = state.get("worker_raw_code", worker_output)
 
     # 工具调用1：代码审查
     review_result = review_code(
         role="qa",
-        worker_output=worker_output,
+        worker_output=worker_code,
         attempt=attempt,
     )
 
     # 工具调用2：Linter 静态分析
-    linter_result = run_linter(role="qa", code=worker_output)
+    linter_result = run_linter(role="qa", code=worker_code)
 
     # 工具调用3：独立运行测试
-    test_result = run_tests(role="qa", code=worker_output)
+    test_result = run_tests(role="qa", code=worker_code)
 
     # 工具调用4：综合出具裁决
     verdict, report = write_verdict(

@@ -55,6 +55,9 @@ class NexusContractState(TypedDict):
     # Worker 产出（代码/报告等纯文本）
     worker_output: str
 
+    # Worker 产出的完整代码（未截断）
+    worker_raw_code: str
+
     # QA 裁决结果
     qa_verdict: Literal["PASS", "FAIL", ""]
 
