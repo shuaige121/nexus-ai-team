@@ -9,13 +9,20 @@ from __future__ import annotations
 import logging
 
 from nexus.orchestrator.permissions import check_tool_permission
+from nexus.orchestrator.tools._llm_helper import llm_call
 
 logger = logging.getLogger(__name__)
+
+_WRITE_CODE_SYSTEM = (
+    "You are a senior Python developer. Write clean, well-structured, "
+    "and tested code. Include docstrings and type hints. "
+    "Return only the code — no prose before or after."
+)
 
 
 def write_code(role: str, instruction: str, attempt: int = 1) -> str:
     """
-    根据 Manager 指令编写代码。
+    根据 Manager 指令编写代码（调用 LLM 生成真实代码）。
 
     Args:
         role: 调用方角色（必须是 "worker"）
@@ -23,31 +30,21 @@ def write_code(role: str, instruction: str, attempt: int = 1) -> str:
         attempt: 当前是第几次尝试（用于重试场景）
 
     Returns:
-        模拟生成的代码字符串
+        LLM 生成的代码字符串
 
     Raises:
         PermissionError: 非 worker 角色调用时抛出
     """
     check_tool_permission(role, "write_code")
-    logger.info("[WORKER_TOOL] write_code: attempt=%d, instr=%s...", attempt, instruction[:50])
-
-    # PoC 阶段：返回固定的模拟代码输出
-    # 真实场景中此处调用 LLM 生成真实代码
-    code_output = (
-        f"# === Worker 产出（第 {attempt} 次尝试）===\n"
-        f"# 指令摘要: {instruction[:80]}\n\n"
-        "def solution():\n"
-        "    \"\"\"根据需求生成的解决方案\"\"\"\n"
-        "    # 核心业务逻辑实现\n"
-        "    result = process_data()\n"
-        "    validate_output(result)\n"
-        "    return result\n\n"
-        "def process_data():\n"
-        "    return {'status': 'success', 'data': [1, 2, 3]}\n\n"
-        "def validate_output(result):\n"
-        "    assert result['status'] == 'success'\n"
+    logger.info(
+        "[WORKER_TOOL] write_code: attempt=%d, instr=%s...", attempt, instruction[:50]
     )
-    return code_output
+
+    user_prompt = (
+        f"Attempt #{attempt}.\n\n"
+        f"Task instruction:\n{instruction}"
+    )
+    return llm_call(role, _WRITE_CODE_SYSTEM, user_prompt)
 
 
 def run_tests(role: str, code: str) -> dict:
@@ -64,7 +61,9 @@ def run_tests(role: str, code: str) -> dict:
     check_tool_permission(role, "run_tests")
     logger.info("[WORKER_TOOL] run_tests: code_len=%d", len(code))
 
-    # PoC 阶段：模拟测试运行结果（全部通过）
+    # TODO: integrate with subprocess for real test execution
+    # (e.g., write code to a temp file, run `pytest --tb=short -q`,
+    # capture stdout/stderr, parse results)
     return {
         "passed": 5,
         "failed": 0,
@@ -106,7 +105,8 @@ def git_commit(role: str, code: str, message: str, branch: str = "feature/task")
 
     logger.info("[WORKER_TOOL] git_commit: branch=%s, msg=%s", branch, message[:50])
 
-    # 模拟生成 commit hash
+    # TODO: integrate with subprocess for real git operations
+    # (e.g., git add, git commit -m, git push origin <branch>)
     fake_hash = f"abc{hash(code + message) % 100000:05x}"
     return f"[{branch}] {fake_hash} — {message}"
 
@@ -120,8 +120,11 @@ def read_file(role: str, file_path: str) -> str:
         file_path: 文件路径（限制在 task_branch_only/ 范围）
 
     Returns:
-        模拟的文件内容字符串
+        文件内容字符串
     """
     check_tool_permission(role, "read_file")
     logger.info("[WORKER_TOOL] read_file: path=%s", file_path)
+
+    # TODO: integrate with real filesystem access (os.path / pathlib)
+    # with sandboxed path validation to prevent directory traversal
     return f"[FILE CONTENT] {file_path}\n# 模拟文件内容\ndata = {{'key': 'value'}}\n"

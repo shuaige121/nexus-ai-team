@@ -9,13 +9,22 @@ from __future__ import annotations
 import logging
 
 from nexus.orchestrator.permissions import check_tool_permission
+from nexus.orchestrator.tools._llm_helper import llm_call
 
 logger = logging.getLogger(__name__)
+
+_BREAK_DOWN_SYSTEM = (
+    "You are a technical project manager. "
+    "Break the given task into 3-5 atomic subtasks that a developer can execute "
+    "independently. Return each subtask on a new line, prefixed with '- '. "
+    "Do not include any introduction, conclusion, or extra commentary — "
+    "output only the bullet list."
+)
 
 
 def break_down_task(role: str, task_description: str) -> list[str]:
     """
-    将高层任务分解为可执行的子任务列表。
+    将高层任务分解为可执行的子任务列表（调用 LLM 进行智能分解）。
 
     Args:
         role: 调用方角色（必须是 "manager"）
@@ -28,16 +37,26 @@ def break_down_task(role: str, task_description: str) -> list[str]:
         PermissionError: 非 manager 角色调用时抛出
     """
     check_tool_permission(role, "break_down_task")
-    logger.info("[MANAGER_TOOL] break_down_task for: %s...", task_description[:60])
+    logger.info(
+        "[MANAGER_TOOL] break_down_task for: %s...", task_description[:60]
+    )
 
-    # PoC 阶段：根据任务描述生成固定子任务结构
-    # 真实场景中此处调用 LLM 进行智能分解
-    subtasks = [
-        f"[子任务1] 分析需求并设计方案: {task_description[:40]}",
-        "[子任务2] 编写核心实现代码",
-        "[子任务3] 编写单元测试并确保覆盖率 >80%",
-        "[子任务4] 提交 git commit 并生成执行报告",
-    ]
+    raw = llm_call(role, _BREAK_DOWN_SYSTEM, task_description, max_tokens=512)
+
+    # Parse lines beginning with "- " into a clean list.
+    subtasks: list[str] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            subtasks.append(stripped[2:].strip())
+        elif stripped.startswith("-"):
+            subtasks.append(stripped[1:].strip())
+
+    # Fallback: if LLM deviated from format, use non-empty lines as subtasks.
+    if not subtasks:
+        subtasks = [line.strip() for line in raw.splitlines() if line.strip()]
+
+    logger.info("[MANAGER_TOOL] break_down_task: parsed %d subtasks", len(subtasks))
     return subtasks
 
 
@@ -54,9 +73,13 @@ def assign_worker(role: str, worker_id: str, subtasks: list[str]) -> str:
         分配指令字符串（会作为 manager_instruction 写入 state）
     """
     check_tool_permission(role, "assign_worker")
-    logger.info("[MANAGER_TOOL] assign_worker: worker=%s, tasks=%d", worker_id, len(subtasks))
+    logger.info(
+        "[MANAGER_TOOL] assign_worker: worker=%s, tasks=%d", worker_id, len(subtasks)
+    )
 
-    task_list = "\n".join(f"  {i+1}. {t}" for i, t in enumerate(subtasks))
+    # TODO: integrate with a real worker registry / task queue
+    # (e.g., lookup worker capacity, assign via message broker)
+    task_list = "\n".join(f"  {i + 1}. {t}" for i, t in enumerate(subtasks))
     instruction = (
         f"Worker {worker_id}，请按顺序执行以下任务：\n"
         f"{task_list}\n"
@@ -98,5 +121,7 @@ def escalate(role: str, reason: str, contract_id: str) -> str:
         上报摘要字符串
     """
     check_tool_permission(role, "escalate")
-    logger.info("[MANAGER_TOOL] escalate: contract=%s reason=%s", contract_id, reason[:50])
+    logger.info(
+        "[MANAGER_TOOL] escalate: contract=%s reason=%s", contract_id, reason[:50]
+    )
     return f"[ESCALATION] contract={contract_id} reason={reason}"
