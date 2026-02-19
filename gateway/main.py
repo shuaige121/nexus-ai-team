@@ -22,6 +22,7 @@ from gateway.config import settings
 from gateway.rate_limiter import RateLimiterMiddleware
 from gateway.schemas import HealthResponse
 from gateway.skill_registry import SkillRegistry
+from gateway.orchestrator_routes import router as orchestrator_router
 from gateway.ws import manager
 from nexus_v1.admin import AdminAgent
 from nexus_v1.model_router import ModelRouter
@@ -228,6 +229,12 @@ app.add_middleware(RequestIDMiddleware)
 # 4. Auth — innermost (runs first on request)
 app.add_middleware(AuthMiddleware)
 
+
+# ---------------------------------------------------------------------------
+# Sub-routers
+# ---------------------------------------------------------------------------
+
+app.include_router(orchestrator_router)
 
 # ---------------------------------------------------------------------------
 # HTTP routes

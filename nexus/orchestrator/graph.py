@@ -30,6 +30,7 @@ import logging
 from typing import Literal
 
 from langgraph.checkpoint.memory import MemorySaver
+from nexus.orchestrator.checkpoint import get_checkpointer
 from langgraph.graph import END, START, StateGraph
 
 from nexus.orchestrator.nodes.ceo import (
@@ -353,10 +354,13 @@ def build_graph_with_interrupts(checkpointer=None) -> StateGraph:
 
 def get_default_graph() -> StateGraph:
     """
-    获取带 MemorySaver checkpointer 的默认 Graph（适用于 PoC 运行）。
+    获取带持久化 checkpointer 的默认 Graph。
+
+    优先使用 PostgresSaver（需设置 NEXUS_PG_URL 环境变量），
+    否则回退到 SqliteSaver（文件级持久化，重启不丢失）。
 
     Returns:
-        使用内存 checkpoint 的编译 Graph
+        使用持久化 checkpoint 的编译 Graph
     """
-    checkpointer = MemorySaver()
+    checkpointer = get_checkpointer()
     return build_graph(checkpointer=checkpointer)
