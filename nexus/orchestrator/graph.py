@@ -44,7 +44,7 @@ from nexus.orchestrator.nodes.progress_check import (
     route_after_progress_check,
 )
 from nexus.orchestrator.nodes.qa import qa_review
-from nexus.orchestrator.nodes.worker import worker_execute
+import nexus.orchestrator.nodes.worker as _worker_node_mod
 from nexus.orchestrator.nodes.worker_accept import (
     route_after_worker_accept,
     worker_accept,
@@ -52,6 +52,20 @@ from nexus.orchestrator.nodes.worker_accept import (
 from nexus.orchestrator.state import NexusContractState
 
 logger = logging.getLogger(__name__)
+
+
+def _worker_execute_proxy(state: "NexusContractState") -> dict:
+    """
+    Thin proxy for worker_execute that resolves the function through the module
+    at call time rather than at import time.
+
+    This indirection ensures that test patches applied via
+    unittest.mock.patch.object(nexus.orchestrator.nodes.worker, 'worker_execute', ...)
+    are picked up correctly, because the graph node holds a reference to this
+    proxy rather than a direct reference to the original function.
+    """
+    return _worker_node_mod.worker_execute(state)
+
 
 
 # --------------------------------------------------------------------------
@@ -156,7 +170,7 @@ def build_graph(checkpointer=None) -> StateGraph:
     # ---------- 注册节点（原有）----------
     builder.add_node("ceo_dispatch", ceo_dispatch)
     builder.add_node("manager_plan", manager_plan)
-    builder.add_node("worker_execute", worker_execute)
+    builder.add_node("worker_execute", _worker_execute_proxy)
     builder.add_node("qa_review", qa_review)
     builder.add_node("manager_review_after_qa", manager_review_after_qa)
     builder.add_node("ceo_approve", ceo_approve)
@@ -269,7 +283,7 @@ def build_graph_with_interrupts(checkpointer=None) -> StateGraph:
     builder.add_node("manager_plan", manager_plan)
     builder.add_node("worker_accept", worker_accept)
     builder.add_node("manager_reassign", manager_reassign)
-    builder.add_node("worker_execute", worker_execute)
+    builder.add_node("worker_execute", _worker_execute_proxy)
     builder.add_node("qa_review", qa_review)
     builder.add_node("manager_review_after_qa", manager_review_after_qa)
     builder.add_node("ceo_approve", ceo_approve)
