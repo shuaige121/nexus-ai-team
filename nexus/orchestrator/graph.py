@@ -109,6 +109,27 @@ def route_after_manager_reassign(
         return "worker_accept"
 
 
+def route_after_worker_execute(
+    state: NexusContractState,
+) -> Literal["qa_review", "progress_check"]:
+    """
+    worker_execute 节点之后的路由决策。
+
+    决策逻辑：
+    - check_after_seconds is not None → "progress_check"（需要定时回查）
+    - check_after_seconds is None     → "qa_review"（直接进入 QA 审查）
+    """
+    if state.get("check_after_seconds") is not None:
+        logger.info(
+            "[ROUTER] route_after_worker_execute: check_after_seconds=%s → progress_check",
+            state.get("check_after_seconds"),
+        )
+        return "progress_check"
+    else:
+        logger.info("[ROUTER] route_after_worker_execute: no check → qa_review")
+        return "qa_review"
+
+
 # --------------------------------------------------------------------------
 # Graph 构建函数
 # --------------------------------------------------------------------------
@@ -176,8 +197,15 @@ def build_graph(checkpointer=None) -> StateGraph:
         },
     )
 
-    # Worker 执行 → QA 审查
-    builder.add_edge("worker_execute", "qa_review")
+    # ---------- 条件边：Worker Execute 后路由（DoubleCheck）----------
+    builder.add_conditional_edges(
+        "worker_execute",
+        route_after_worker_execute,
+        {
+            "qa_review": "qa_review",              # 无回查需求，直接 QA
+            "progress_check": "progress_check",    # 需要定时回查，进入 DoubleCheck
+        },
+    )
 
     # QA 审查 → Manager 汇总审阅
     builder.add_edge("qa_review", "manager_review_after_qa")
@@ -268,7 +296,14 @@ def build_graph_with_interrupts(checkpointer=None) -> StateGraph:
             "ceo_handle_escalation": "ceo_handle_escalation",
         },
     )
-    builder.add_edge("worker_execute", "qa_review")
+    builder.add_conditional_edges(
+        "worker_execute",
+        route_after_worker_execute,
+        {
+            "qa_review": "qa_review",
+            "progress_check": "progress_check",
+        },
+    )
     builder.add_edge("qa_review", "manager_review_after_qa")
     builder.add_conditional_edges(
         "manager_review_after_qa",

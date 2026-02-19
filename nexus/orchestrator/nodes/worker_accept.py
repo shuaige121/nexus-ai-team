@@ -68,8 +68,8 @@ def worker_accept(state: NexusContractState) -> dict:
         )
 
         # 向 Manager 发送拒绝通知
-        mail = send_mail(
-            from_role="worker",
+        mail, rejection = send_mail(
+            state_phase="worker_rejected",
             to_role="manager",
             subject=f"合同拒绝通知: {contract_id}",
             body=(
@@ -85,7 +85,7 @@ def worker_accept(state: NexusContractState) -> dict:
             "contract_accepted": False,
             "reject_reason": reject_reason,
             "acceptance_deadline": deadline,
-            "mail_log": [mail],
+            "mail_log": [mail] if mail else [],
         }
 
     else:
@@ -93,8 +93,8 @@ def worker_accept(state: NexusContractState) -> dict:
         logger.info("[WORKER_ACCEPT] 接受合同 contract=%s", contract_id)
 
         # 向 Manager 发送接受确认
-        mail = send_mail(
-            from_role="worker",
+        mail, rejection = send_mail(
+            state_phase="worker_accepted",
             to_role="manager",
             subject=f"合同接受确认: {contract_id}",
             body=(
@@ -110,7 +110,7 @@ def worker_accept(state: NexusContractState) -> dict:
             "contract_accepted": True,
             "reject_reason": "",
             "acceptance_deadline": deadline,
-            "mail_log": [mail],
+            "mail_log": [mail] if mail else [],
         }
 
 

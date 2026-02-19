@@ -60,8 +60,8 @@ def manager_reassign(state: NexusContractState) -> dict:
             ),
             contract_id=contract_id,
         )
-        mail = send_mail(
-            from_role="manager",
+        mail, rejection = send_mail(
+            state_phase="manager_reassigning",
             to_role="ceo",
             subject=f"上报: {contract_id} Worker 拒绝且无法重新分配",
             body=(
@@ -74,7 +74,7 @@ def manager_reassign(state: NexusContractState) -> dict:
         return {
             "current_phase": "ceo_escalation",
             "escalated": True,
-            "mail_log": [mail],
+            "mail_log": [mail] if mail else [],
         }
 
     else:
@@ -91,8 +91,8 @@ def manager_reassign(state: NexusContractState) -> dict:
             f"调整后指令：\n{new_instruction}"
         )
 
-        mail = send_mail(
-            from_role="manager",
+        mail, rejection = send_mail(
+            state_phase="worker_accepting",
             to_role="worker",
             subject=f"重新分配合同: {contract_id}（第 {attempt_count + 1} 次）",
             body=adjusted_instruction,
@@ -111,5 +111,5 @@ def manager_reassign(state: NexusContractState) -> dict:
             # 重置 contract_accepted 为 None，等待新的 Worker 回应
             "contract_accepted": None,
             "reject_reason": "",
-            "mail_log": [mail],
+            "mail_log": [mail] if mail else [],
         }

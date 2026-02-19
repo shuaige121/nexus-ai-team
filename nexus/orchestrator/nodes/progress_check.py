@@ -71,8 +71,8 @@ def check_progress(state: NexusContractState) -> dict:
             "[PROGRESS_CHECK] 超过最大回查次数且无产出，触发 escalation: contract=%s",
             contract_id,
         )
-        mail = send_mail(
-            from_role="manager",
+        mail, rejection = send_mail(
+            state_phase="check_escalation",
             to_role="ceo",
             subject=f"上报: {contract_id} 超过最大回查次数仍无进展",
             body=(
@@ -88,7 +88,7 @@ def check_progress(state: NexusContractState) -> dict:
             "check_count": new_check_count,
             "last_check_time": now_iso,
             "escalated": True,
-            "mail_log": [mail],
+            "mail_log": [mail] if mail else [],
         }
 
     # --- 判断当前进度状态 ---
@@ -99,8 +99,8 @@ def check_progress(state: NexusContractState) -> dict:
             "[PROGRESS_CHECK] Worker 无产出（stuck），contract=%s", contract_id
         )
         # 通知 Manager Worker 可能卡住了
-        mail = send_mail(
-            from_role="manager",
+        mail, rejection = send_mail(
+            state_phase="check_stuck",
             to_role="ceo",
             subject=f"进度预警: {contract_id} Worker 无响应",
             body=(
@@ -116,7 +116,7 @@ def check_progress(state: NexusContractState) -> dict:
             "check_count": new_check_count,
             "last_check_time": now_iso,
             "escalated": True,
-            "mail_log": [mail],
+            "mail_log": [mail] if mail else [],
         }
 
     else:
