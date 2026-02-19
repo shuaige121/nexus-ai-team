@@ -171,7 +171,10 @@ def write_verdict(
 
     # Parse: first non-empty line must be "PASS" or "FAIL".
     lines = [ln for ln in raw.splitlines() if ln.strip()]
-    first_line = lines[0].strip().upper() if lines else ""
+    # Strip markdown formatting (**/*/backticks) that LLMs sometimes add around
+    # the verdict word before doing the startswith check.
+    _raw_first = lines[0].strip() if lines else ""
+    first_line = _raw_first.strip("*`# ").upper()
 
     if first_line.startswith("PASS"):
         verdict: Literal["PASS", "FAIL"] = "PASS"
@@ -181,7 +184,7 @@ def write_verdict(
         # LLM deviated from the required format — default to FAIL (safe side).
         logger.warning(
             "[QA_TOOL] write_verdict: unexpected first line %r — defaulting to FAIL",
-            first_line,
+            _raw_first,
         )
         verdict = "FAIL"
 
