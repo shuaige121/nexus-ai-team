@@ -62,6 +62,23 @@ def base_state() -> NexusContractState:
         "final_result": "",
         "ceo_approved": False,
         "escalated": False,
+        # Ownership fields
+        "contract_accepted": None,
+        "reject_reason": "",
+        "acceptance_deadline": "",
+        # DoubleCheck fields
+        "check_after_seconds": None,
+        "check_count": 0,
+        "max_checks": 3,
+        "last_check_time": "",
+        "check_result": "",
+        # Approval fields
+        "approval_request_id": "",
+        "approval_status": "",
+        "approval_rejection_notes": "",
+        "approver_type": "ai",
+        "approver_id": "ai_ceo",
+        "approval_cc_list": [],
     }
 
 
@@ -76,6 +93,25 @@ def make_thread_config(contract_id: str | None = None) -> dict:
     """生成 LangGraph 线程配置。"""
     tid = contract_id or f"thread-{uuid.uuid4().hex[:8]}"
     return {"configurable": {"thread_id": tid}}
+
+
+@pytest.fixture(autouse=True)
+def mock_approval_ai_llm():
+    """
+    自动 mock AI CEO 审批的 LLM 调用，使其始终返回 APPROVE。
+
+    这是必要的，因为 ceo_approve 现在调用 ai_approve（LLM），
+    而大多数管道测试只关心工作流逻辑，不关心 AI 审批决策本身。
+    对于需要测试真实 AI 审批行为的测试，可以用 patch 覆盖此 fixture。
+    """
+    import nexus.orchestrator.approval_ai as _approval_ai_mod
+    from unittest.mock import patch
+
+    def _always_approve(role, system_prompt, user_prompt, max_tokens=512):
+        return "APPROVE\nAll requirements met, work is satisfactory."
+
+    with patch.object(_approval_ai_mod, "llm_call", side_effect=_always_approve):
+        yield
 
 
 # --------------------------------------------------------------------------
@@ -346,8 +382,14 @@ class TestContractPipeline:
 
         config = make_thread_config(base_state["contract_id"])
 
+        import nexus.orchestrator.approval_ai as _approval_ai_mod
+
+        def _ceo_llm_always_approve(role, system_prompt, user_prompt, max_tokens=512):
+            return "APPROVE\nWork meets all requirements."
+
         steps: list[str] = []
-        with patch.object(_qa_tools_mod, "llm_call", side_effect=_qa_llm_always_pass):
+        with patch.object(_qa_tools_mod, "llm_call", side_effect=_qa_llm_always_pass), \
+             patch.object(_approval_ai_mod, "llm_call", side_effect=_ceo_llm_always_approve):
             for event in graph_with_memory.stream(base_state, config=config, stream_mode="updates"):
                 for node_name in event:
                     steps.append(node_name)
