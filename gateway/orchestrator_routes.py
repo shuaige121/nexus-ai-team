@@ -1,9 +1,11 @@
 """Orchestrator API routes for NEXUS Gateway.
 
 Provides REST endpoints for creating and querying LangGraph contracts.
+Uses asyncio.Semaphore to limit parallel contract execution.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import uuid
@@ -12,9 +14,18 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
+from nexus.orchestrator.llm_config import MAX_PARALLEL_CONTRACTS
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
+
+# ---------------------------------------------------------------------------
+# Parallel execution limiter
+# ---------------------------------------------------------------------------
+# Semaphore limits how many contracts run concurrently.
+# Requests exceeding MAX_PARALLEL_CONTRACTS will queue in FIFO order.
+_parallel_semaphore = asyncio.Semaphore(MAX_PARALLEL_CONTRACTS)
 
 # ---------------------------------------------------------------------------
 # In-memory contract tracking (for async submit + poll)
@@ -50,17 +61,17 @@ class ContractResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Background graph runner
+# Background graph runner (with semaphore-based parallel limit)
 # ---------------------------------------------------------------------------
 
 
-def _run_graph_background(
+def _run_graph_sync(
     contract_id: str,
     graph,
     initial_state: dict,
     config: dict,
 ) -> None:
-    """Run graph.stream() in a background thread, updating _contract_status."""
+    """Run graph.stream() synchronously, updating _contract_status."""
     try:
         _contract_status[contract_id]["status"] = "running"
         final_state = None
@@ -96,6 +107,32 @@ def _run_graph_background(
         })
 
 
+async def _run_graph_background(
+    contract_id: str,
+    graph,
+    initial_state: dict,
+    config: dict,
+) -> None:
+    """Acquire semaphore slot, then run graph in a thread.
+
+    If all slots are occupied, this coroutine waits (queues) until a
+    slot becomes available.  This enforces MAX_PARALLEL_CONTRACTS.
+    """
+    _contract_status[contract_id]["status"] = "queued"
+    logger.info(
+        "[CONTRACT] %s waiting for execution slot (max_parallel=%d)",
+        contract_id, MAX_PARALLEL_CONTRACTS,
+    )
+
+    async with _parallel_semaphore:
+        logger.info("[CONTRACT] %s acquired execution slot", contract_id)
+        # Run the blocking graph.stream() in a thread so we don't block the event loop
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None, _run_graph_sync, contract_id, graph, initial_state, config,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -103,7 +140,11 @@ def _run_graph_background(
 
 @router.post("/", status_code=202)
 async def create_contract(req: ContractRequest):
-    """CEO creates a new contract and kicks off the graph in the background."""
+    """CEO creates a new contract and kicks off the graph in the background.
+
+    Execution is limited to MAX_PARALLEL_CONTRACTS concurrent contracts.
+    Requests beyond this limit are queued in FIFO order.
+    """
     from nexus.orchestrator.checkpoint import get_checkpointer
     from nexus.orchestrator.graph import build_graph
 
@@ -151,18 +192,17 @@ async def create_contract(req: ContractRequest):
     graph = build_graph(checkpointer=checkpointer)
     config = {"configurable": {"thread_id": contract_id}}
 
-    # Track contract and run graph in background thread
+    # Track contract
     _contract_status[contract_id] = {
         "status": "queued",
         "current_phase": "ceo_dispatch",
         "steps": [],
     }
-    thread = threading.Thread(
-        target=_run_graph_background,
-        args=(contract_id, graph, initial_state, config),
-        daemon=True,
+
+    # Schedule graph execution with parallel limiting (fire-and-forget)
+    asyncio.create_task(
+        _run_graph_background(contract_id, graph, initial_state, config)
     )
-    thread.start()
 
     return JSONResponse(
         status_code=202,

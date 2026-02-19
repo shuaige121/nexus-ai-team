@@ -96,21 +96,45 @@ def make_thread_config(contract_id: str | None = None) -> dict:
 
 
 @pytest.fixture(autouse=True)
-def mock_approval_ai_llm():
+def mock_all_llm_calls():
     """
-    自动 mock AI CEO 审批的 LLM 调用，使其始终返回 APPROVE。
+    自动 mock 所有模块的 llm_call，使管道测试不依赖真实 LLM 服务。
 
-    这是必要的，因为 ceo_approve 现在调用 ai_approve（LLM），
-    而大多数管道测试只关心工作流逻辑，不关心 AI 审批决策本身。
-    对于需要测试真实 AI 审批行为的测试，可以用 patch 覆盖此 fixture。
+    被 mock 的模块：
+    - approval_ai.llm_call      → 始终返回 APPROVE
+    - qa_tools.llm_call          → 始终返回 PASS
+    - manager_tools.llm_call     → 返回合理的任务分解文本
+    - worker_tools.llm_call      → 返回简单的 Hello World 代码
+
+    对于需要测试特定 LLM 行为的测试，可以在测试内部用 patch 覆盖。
     """
     import nexus.orchestrator.approval_ai as _approval_ai_mod
+    import nexus.orchestrator.tools.qa_tools as _qa_tools_mod
+    import nexus.orchestrator.tools.manager_tools as _mgr_tools_mod
+    import nexus.orchestrator.tools.worker_tools as _wkr_tools_mod
     from unittest.mock import patch
 
     def _always_approve(role, system_prompt, user_prompt, max_tokens=512):
         return "APPROVE\nAll requirements met, work is satisfactory."
 
-    with patch.object(_approval_ai_mod, "llm_call", side_effect=_always_approve):
+    def _always_pass_qa(role, system_prompt, user_prompt, max_tokens=512):
+        return "PASS\nAll checks passed. Code quality: 95/100."
+
+    def _manager_plan_llm(role, system_prompt, user_prompt, max_tokens=512):
+        return "1. 实现核心函数\n2. 编写单元测试\n3. 代码审查"
+
+    def _worker_code_llm(role, system_prompt, user_prompt, max_tokens=512):
+        return (
+            "def hello_world():\n"
+            "    return \"Hello, World!\"\n\n"
+            "if __name__ == \"__main__\":\n"
+            "    print(hello_world())\n"
+        )
+
+    with patch.object(_approval_ai_mod, "llm_call", side_effect=_always_approve), \
+         patch.object(_qa_tools_mod, "llm_call", side_effect=_always_pass_qa), \
+         patch.object(_mgr_tools_mod, "llm_call", side_effect=_manager_plan_llm), \
+         patch.object(_wkr_tools_mod, "llm_call", side_effect=_worker_code_llm):
         yield
 
 
@@ -770,25 +794,39 @@ class TestQAVerdictLogic:
 
     def test_fail_verdict_on_test_failure(self):
         """测试失败时应输出 FAIL 裁决。"""
-        verdict, report = write_verdict(
-            role="qa",
-            review_result={"issues_found": [], "code_quality_score": 90},
-            linter_result={"errors": 0, "warnings": 0},
-            test_result={"status": "RED", "coverage": "60%"},
-        )
+        import nexus.orchestrator.tools.qa_tools as _qa_tools_mod
+
+        with patch.object(
+            _qa_tools_mod,
+            "llm_call",
+            return_value="FAIL\nTests are RED with only 60% coverage.",
+        ):
+            verdict, report = write_verdict(
+                role="qa",
+                review_result={"issues_found": [], "code_quality_score": 90},
+                linter_result={"errors": 0, "warnings": 0},
+                test_result={"status": "RED", "coverage": "60%"},
+            )
         assert verdict == "FAIL"
 
     def test_fail_verdict_on_code_issues(self):
         """代码审查发现问题时应输出 FAIL 裁决。"""
-        verdict, report = write_verdict(
-            role="qa",
-            review_result={
-                "issues_found": ["发现未完成的 TODO 注释"],
-                "code_quality_score": 60,
-            },
-            linter_result={"errors": 0, "warnings": 1},
-            test_result={"status": "GREEN", "coverage": "80%"},
-        )
+        import nexus.orchestrator.tools.qa_tools as _qa_tools_mod
+
+        with patch.object(
+            _qa_tools_mod,
+            "llm_call",
+            return_value="FAIL\n发现未完成的 TODO 注释，代码质量问题需要修复。",
+        ):
+            verdict, report = write_verdict(
+                role="qa",
+                review_result={
+                    "issues_found": ["发现未完成的 TODO 注释"],
+                    "code_quality_score": 60,
+                },
+                linter_result={"errors": 0, "warnings": 1},
+                test_result={"status": "GREEN", "coverage": "80%"},
+            )
         assert verdict == "FAIL"
         assert "TODO" in report or "问题" in report
 

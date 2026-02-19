@@ -16,6 +16,7 @@ CC recipients receive only passive notifications and cannot interact with button
 from __future__ import annotations
 
 import logging
+import hmac
 import os
 import threading
 
@@ -66,10 +67,11 @@ async def telegram_webhook(request: Request) -> Response:
     import telegram
 
     # --- Webhook signature verification (P2-15) ---
-    expected_token = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    from gateway.config import settings
+    expected_token = settings.telegram_webhook_secret
     if expected_token:
         received_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        if received_token != expected_token:
+        if not hmac.compare_digest(expected_token, received_token):
             logger.warning("[WEBHOOK] Invalid secret token from %s", request.client.host)
             return Response(status_code=403)
 

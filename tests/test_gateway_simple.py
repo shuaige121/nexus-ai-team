@@ -19,7 +19,7 @@ def test_gateway_startup():
     # Start server with minimal config (no Redis/PostgreSQL required)
     print("Starting FastAPI server...")
     proc = subprocess.Popen(
-        ["uvicorn", "gateway.main:app", "--host", "127.0.0.1", "--port", "8766"],
+        [sys.executable, "-m", "uvicorn", "gateway.main:app", "--host", "127.0.0.1", "--port", "8766"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

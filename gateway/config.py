@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     # --- Telegram ---
     telegram_bot_token: str = ""
+    telegram_webhook_secret: str = ""
 
     # --- Database ---
     database_url: str  # Required: Must be set via environment variable

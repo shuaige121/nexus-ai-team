@@ -50,7 +50,7 @@ from nexus.orchestrator.nodes.worker_accept import (
     route_after_worker_accept,
     worker_accept,
 )
-from nexus.orchestrator.state import NexusContractState
+from nexus.orchestrator.state import MAX_RETRIES, NexusContractState
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +82,12 @@ def route_after_qa_review(
 
     决策逻辑：
     - PASS → CEO 最终审批
-    - FAIL + attempt < max → Worker 重试
-    - FAIL + attempt >= max → CEO 上报处理
+    - FAIL + attempt < MAX_RETRIES → Worker 重试
+    - FAIL + attempt >= MAX_RETRIES → CEO 上报处理
     """
     verdict = state["qa_verdict"]
     attempt = state["attempt_count"]
-    max_att = state["max_attempts"]
+    max_att = state.get("max_attempts", MAX_RETRIES)
 
     logger.info(
         "[ROUTER] route_after_qa_review: verdict=%s, attempt=%d/%d",
@@ -143,6 +143,42 @@ def route_after_worker_execute(
     else:
         logger.info("[ROUTER] route_after_worker_execute: no check → qa_review")
         return "qa_review"
+
+
+def route_after_ceo_approve(
+    state: NexusContractState,
+) -> Literal["__end__", "worker_execute"]:
+    """
+    CEO 审批节点之后的路由决策。
+
+    决策逻辑：
+    - approved -> END（合同完成）
+    - rejected + attempt < MAX_RETRIES -> Worker 重做（CEO feedback 已注入 state）
+    - rejected + attempt >= MAX_RETRIES -> END（已无重试机会）
+    """
+    approved = state.get("ceo_approved", False)
+    attempt = state.get("attempt_count", 0)
+    max_att = state.get("max_attempts", MAX_RETRIES)
+
+    if approved:
+        logger.info("[ROUTER] route_after_ceo_approve: approved -> END")
+        return "__end__"
+
+    # CEO 拒绝：检查是否还有重试机会
+    if attempt < max_att:
+        logger.info(
+            "[ROUTER] route_after_ceo_approve: rejected, attempt=%d/%d -> worker_execute",
+            attempt,
+            max_att,
+        )
+        return "worker_execute"
+    else:
+        logger.warning(
+            "[ROUTER] route_after_ceo_approve: rejected, attempt=%d/%d -> END (no retries left)",
+            attempt,
+            max_att,
+        )
+        return "__end__"
 
 
 # --------------------------------------------------------------------------
@@ -248,8 +284,15 @@ def build_graph(checkpointer=None) -> StateGraph:
         },
     )
 
-    # CEO 审批 → 结束
-    builder.add_edge("ceo_approve", END)
+    # ---------- 条件边：CEO 审批后路由（拒绝时可回 Worker 重做）----------
+    builder.add_conditional_edges(
+        "ceo_approve",
+        route_after_ceo_approve,
+        {
+            END: END,
+            "worker_execute": "worker_execute",
+        },
+    )
 
     # CEO 处理上报 → 结束
     builder.add_edge("ceo_handle_escalation", END)
@@ -337,7 +380,15 @@ def build_graph_with_interrupts(checkpointer=None) -> StateGraph:
             "ceo_handle_escalation": "ceo_handle_escalation",
         },
     )
-    builder.add_edge("ceo_approve", END)
+    # ---------- 条件边：CEO 审批后路由（拒绝时可回 Worker 重做）----------
+    builder.add_conditional_edges(
+        "ceo_approve",
+        route_after_ceo_approve,
+        {
+            END: END,
+            "worker_execute": "worker_execute",
+        },
+    )
     builder.add_edge("ceo_handle_escalation", END)
 
     compile_kwargs: dict = {

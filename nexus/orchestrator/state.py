@@ -9,6 +9,12 @@ from operator import add
 from typing import Annotated, Literal, TypedDict
 
 
+# ---------------------------------------------------------------------------
+# 全局常量：最大重试次数（Graph 路由和 Manager Reassign 统一引用）
+# ---------------------------------------------------------------------------
+MAX_RETRIES: int = 3
+
+
 class MailMessage(TypedDict):
     """内部邮件消息结构。每条邮件都会记录在 mail_log 中以便审计。"""
 
@@ -143,3 +149,8 @@ class NexusContractState(TypedDict):
 
     # 抄送列表：Telegram chat ID 列表
     approval_cc_list: list[str]
+
+    # =========================================================================
+    # CEO 拒绝反馈（CEO reject 后注入，供 Worker 重做时参考）
+    # =========================================================================
+    ceo_rejection_feedback: str

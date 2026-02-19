@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 
 from nexus.orchestrator.mail import send_mail
-from nexus.orchestrator.state import NexusContractState
+from nexus.orchestrator.state import MAX_RETRIES, NexusContractState
 from nexus.orchestrator.tools.manager_tools import assign_worker, escalate
 
 logger = logging.getLogger(__name__)
@@ -40,22 +40,24 @@ def manager_reassign(state: NexusContractState) -> dict:
     contract_id = state["contract_id"]
     reject_reason = state.get("reject_reason", "原因未知")
     attempt_count = state.get("attempt_count", 0)
-    max_attempts = state.get("max_attempts", 3)
 
     logger.warning(
         "[MANAGER_REASSIGN] Worker 拒绝合同 contract=%s, attempt=%d/%d, reason=%s",
         contract_id,
         attempt_count,
-        max_attempts,
+        MAX_RETRIES,
         reject_reason[:80],
     )
 
-    if attempt_count >= max_attempts:
-        # 超出重试上限，上报 CEO
+    # 递增 attempt_count
+    new_attempt = attempt_count + 1
+
+    # 检查是否超出重试上限 → 标记 escalated 供 graph 路由判断
+    if new_attempt >= MAX_RETRIES:
         escalation_msg = escalate(
             role="manager",
             reason=(
-                f"Worker 拒绝合同，且已达到最大分配次数 {max_attempts}。\n"
+                f"Worker 拒绝合同，且已达到最大分配次数 {MAX_RETRIES}。\n"
                 f"拒绝原因：{reject_reason}"
             ),
             contract_id=contract_id,
@@ -66,7 +68,7 @@ def manager_reassign(state: NexusContractState) -> dict:
             subject=f"上报: {contract_id} Worker 拒绝且无法重新分配",
             body=(
                 f"{escalation_msg}\n\n"
-                f"已尝试分配 {attempt_count} 次，均未获 Worker 接受。\n"
+                f"已尝试分配 {new_attempt} 次，均未获 Worker 接受。\n"
                 f"需要 CEO 介入：重新定义任务范围或引入新资源。"
             ),
             msg_type="escalation",
@@ -74,43 +76,43 @@ def manager_reassign(state: NexusContractState) -> dict:
         return {
             "current_phase": "ceo_escalation",
             "escalated": True,
+            "attempt_count": new_attempt,
             "mail_log": [mail] if mail else [],
         }
 
-    else:
-        # 还有机会 → 重新拆解任务后下发
-        # 调整指令（PoC：在原指令基础上追加"简化版"提示）
-        new_instruction = assign_worker(
-            role="manager",
-            worker_id="worker_001",
-            subtasks=state.get("subtasks", [state["task_description"]]),
-        )
-        adjusted_instruction = (
-            f"[重新分配 - 第 {attempt_count + 1} 次]\n"
-            f"上次 Worker 拒绝原因：{reject_reason[:200]}\n\n"
-            f"调整后指令：\n{new_instruction}"
-        )
+    # 还有机会 → 重新拆解任务后下发
+    new_instruction = assign_worker(
+        role="manager",
+        worker_id="worker_001",
+        subtasks=state.get("subtasks", [state["task_description"]]),
+    )
+    adjusted_instruction = (
+        f"[重新分配 - 第 {new_attempt} 次]\n"
+        f"上次 Worker 拒绝原因：{reject_reason[:200]}\n\n"
+        f"调整后指令：\n{new_instruction}"
+    )
 
-        mail, rejection = send_mail(
-            state_phase="worker_accepting",
-            to_role="worker",
-            subject=f"重新分配合同: {contract_id}（第 {attempt_count + 1} 次）",
-            body=adjusted_instruction,
-            msg_type="contract",
-        )
+    mail, rejection = send_mail(
+        state_phase="worker_accepting",
+        to_role="worker",
+        subject=f"重新分配合同: {contract_id}（第 {new_attempt} 次）",
+        body=adjusted_instruction,
+        msg_type="contract",
+    )
 
-        logger.info(
-            "[MANAGER_REASSIGN] 重新分配合同 contract=%s, attempt=%d",
-            contract_id,
-            attempt_count + 1,
-        )
+    logger.info(
+        "[MANAGER_REASSIGN] 重新分配合同 contract=%s, attempt=%d",
+        contract_id,
+        new_attempt,
+    )
 
-        return {
-            "current_phase": "worker_accepting",
-            "manager_instruction": adjusted_instruction,
-            # 重置 contract_accepted 为 None，等待新的 Worker 回应
-            "contract_accepted": None,
-            "reject_reason": "",
-            "attempt_count": attempt_count + 1,
-            "mail_log": [mail] if mail else [],
-        }
+    return {
+        "current_phase": "worker_accepting",
+        "manager_instruction": adjusted_instruction,
+        # 重置 contract_accepted 为 None，等待新的 Worker 回应
+        "contract_accepted": None,
+        "reject_reason": "",
+        "attempt_count": new_attempt,
+        "escalated": False,
+        "mail_log": [mail] if mail else [],
+    }

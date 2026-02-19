@@ -193,6 +193,7 @@ def ceo_approve(state: NexusContractState) -> dict:
                 "approval_request_id": req.request_id,
                 "approval_status": "rejected",
                 "approval_rejection_notes": notes,
+                "ceo_rejection_feedback": notes,
                 "final_result": "合同 {} 被拒绝。\n原因: {}".format(contract_id, notes),
             }
 
@@ -238,6 +239,7 @@ def ceo_approve(state: NexusContractState) -> dict:
                 "approval_request_id": req.request_id,
                 "approval_status": "rejected",
                 "approval_rejection_notes": req.rejection_notes,
+                "ceo_rejection_feedback": req.rejection_notes,
                 "final_result": "合同 {} 被 AI CEO 拒绝。\n原因: {}".format(
                     contract_id, req.rejection_notes
                 ),

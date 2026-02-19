@@ -276,3 +276,54 @@ def send_decision_notification_sync(
     except RuntimeError:
         # No running loop — safe to create one
         asyncio.run(coro)
+
+
+# ---------------------------------------------------------------------------
+# Webhook setup — includes secret_token for signature verification (P2-15)
+# ---------------------------------------------------------------------------
+
+
+async def set_webhook(url: str, secret_token: str = "") -> bool:
+    """Register the Telegram webhook URL with an optional secret_token.
+
+    When *secret_token* is provided Telegram will include it in every webhook
+    request as the X-Telegram-Bot-Api-Secret-Token header, allowing the
+    receiving server to verify that the request genuinely originated from
+    Telegram.
+
+    Args:
+        url: The HTTPS URL Telegram should POST updates to.
+        secret_token: A 1-256 character string used for webhook verification.
+                      If empty, falls back to the TELEGRAM_WEBHOOK_SECRET env var.
+
+    Returns:
+        True if Telegram accepted the webhook registration.
+    """
+    import telegram
+
+    token = _get_bot_token()
+    bot = telegram.Bot(token=token)
+
+    # Resolve secret: explicit parameter > environment variable
+    secret = secret_token or os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+
+    async with bot:
+        result = await bot.set_webhook(url=url, secret_token=secret or None)
+        logger.info(
+            "[TG_APPROVAL] Webhook set to %s (secret_token=%s)",
+            url,
+            "configured" if secret else "none",
+        )
+        return result
+
+
+def set_webhook_sync(url: str, secret_token: str = "") -> bool:
+    """Synchronous wrapper around set_webhook."""
+    coro = set_webhook(url, secret_token)
+    try:
+        asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result(timeout=30)
+    except RuntimeError:
+        return asyncio.run(coro)
