@@ -95,19 +95,24 @@ def ceo_approve(state: NexusContractState) -> dict:
         approver_type,
     )
 
-    # Build summary from current state
+    # Build summary — use full QA report and raw code when available
+    worker_code_preview = state.get("worker_raw_code", state.get("worker_output", ""))
+    # Limit code to 2000 chars for CEO context (enough for meaningful review)
+    if len(worker_code_preview) > 2000:
+        worker_code_preview = worker_code_preview[:2000] + "\n... (truncated)"
+
     summary = (
         "任务: {}\n"
-        "Worker 产出: {}\n"
         "QA 裁决: {}\n"
-        "QA 报告: {}\n"
-        "重试次数: {}"
+        "QA 报告:\n{}\n"
+        "重试次数: {}\n\n"
+        "Worker 代码:\n{}"
     ).format(
         state["task_description"],
-        state.get("worker_output", "")[:500],
         state.get("qa_verdict", ""),
-        state.get("qa_report", "")[:300],
+        state.get("qa_report", ""),
         state.get("attempt_count", 0),
+        worker_code_preview,
     )
 
     if approver_type == "human":
